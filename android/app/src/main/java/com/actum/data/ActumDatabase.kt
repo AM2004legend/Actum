@@ -1,0 +1,85 @@
+package com.actum.data
+
+import android.content.Context
+import androidx.room.AutoMigration
+import androidx.room.Database
+import androidx.room.Room
+import androidx.room.RoomDatabase
+import androidx.room.TypeConverters
+import com.actum.data.DiaryEntry
+import com.actum.data.Expense
+import com.actum.data.LogRecord
+import com.actum.data.Marker
+import com.actum.data.ListsDao
+import com.actum.data.TodoItem
+
+/**
+ * Schema changes go through a version bump and an AutoMigration against the
+ * checked-in schema JSON (app/schemas/). Never fallbackToDestructiveMigration:
+ * it would silently wipe saved memories on upgrade. A migration that adds or
+ * changes the full-text index's columns must also rebuild it
+ * (`INSERT INTO memories_fts(memories_fts) VALUES('rebuild')` in the spec's
+ * onPostMigrate), since its triggers only see later writes.
+ *
+ * Each workstream adds its own DAO here: one abstract function per DAO.
+ */
+@Database(
+    entities = [
+        Memory::class, MemoryFts::class, PendingDelete::class, ImportedSource::class, Embedding::class,
+        TodoItem::class, Expense::class, DiaryEntry::class, LogRecord::class, Marker::class,
+    ],
+    version = 5,
+    exportSchema = true,
+    autoMigrations = [
+        // Local-first L1: the embeddings table.
+        AutoMigration(from = 1, to = 2),
+        // Actum: the to-do list and the ledger.
+        AutoMigration(from = 2, to = 3),
+        // Actum: the diary and the log of confirmed actions.
+        AutoMigration(from = 3, to = 4),
+        // Actum: its own calendar marks.
+        AutoMigration(from = 4, to = 5),
+    ],
+)
+@TypeConverters(Converters::class)
+abstract class ActumDatabase : RoomDatabase() {
+
+    abstract fun memoryDao(): MemoryDao
+
+    // Reading workstream: unread image queries and targeted text updates
+    abstract fun readingDao(): ReadingDao
+
+    // Capture workstream: the capture sheet's note, written by id
+    abstract fun captureDao(): CaptureDao
+
+    // Reading workstream: bulk importer duplicate tracking
+    abstract fun importDao(): ImportDao
+
+    // Sync workstream: the upload queue's claims and marks
+    abstract fun uploadDao(): UploadDao
+
+    // Local first: the vectors made on the phone
+    abstract fun embeddingDao(): EmbeddingDao
+
+    // Actum: what confirmed TODO and EXPENSE actions write
+    abstract fun listsDao(): ListsDao
+
+    companion object {
+        private const val DB_NAME = "actum.db"
+
+        @Volatile
+        private var instance: ActumDatabase? = null
+
+        fun get(context: Context): ActumDatabase =
+            instance ?: synchronized(this) {
+                instance ?: build(context).also { instance = it }
+            }
+
+        private fun build(context: Context) =
+            Room.databaseBuilder(
+                context.applicationContext,
+                ActumDatabase::class.java,
+                DB_NAME,
+            ).build()
+    }
+}

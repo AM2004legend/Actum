@@ -1,12 +1,12 @@
 <resources>
-    <string name="app_name">Breadcrumb</string>
+    <string name="app_name">Actum</string>
 
     <!-- The Quick Settings tile's label, set by the capture workstream. -->
-    <string name="tile_label">Breadcrumb</string>
+    <string name="tile_label">Actum</string>
     <!-- The tile's second line: what a tap does, since it is an action, not a toggle. -->
     <string name="tile_subtitle">Save clipboard</string>
 
-    <!-- Reading workstream R8: bringing in what's already on the phone (design §14, §16) -->
+    <!-- Reading workstream R8: bringing in what's already on the phone -->
     <string name="import_title">Bring in</string>
     <string name="import_back">back</string>
     <string name="import_choice_folder">A whole folder</string>
@@ -17,8 +17,8 @@
     <string name="import_choice_files_detail">from the file picker</string>
 
     <!-- The debug list. Lowercase mono chrome, as the search screens will be. -->
-    <string name="debug_title">breadcrumb · debug</string>
-    <string name="debug_empty">Nothing saved yet. Tap + for a sample, or share something to Breadcrumb.</string>
+    <string name="debug_title">actum · debug</string>
+    <string name="debug_empty">Nothing saved yet. Tap + for a sample, or share something to Actum.</string>
     <string name="debug_add_sample">Add a sample memory</string>
     <string name="debug_clear">Clear</string>
     <string name="debug_delete">Delete</string>
@@ -38,18 +38,18 @@
     <string name="debug_retry_refused">retry refused</string>
 
     <!-- Sync workstream: the home screen (design section 16). -->
-    <string name="home_wordmark">breadcrumb</string>
+    <string name="home_wordmark">Actum</string>
     <string name="home_nothing_title">Nothing kept yet</string>
     <string name="home_nothing_start">Start here: the + brings in the screenshots and PDFs already on your phone.</string>
-    <string name="home_nothing_or">or share anything to breadcrumb from any app,\nor copy it and tap the breadcrumb tile</string>
-    <string name="search_hint">search your memory</string>
+    <string name="home_nothing_or">or share anything to Actum from any app,\nor copy it and tap the Actum tile</string>
+    <string name="search_hint">search, or ask Actum to do it</string>
     <string name="search_clear">Clear search</string>
     <string name="search_none_title">Nothing matches that</string>
     <string name="search_none_hint">try fewer words, or describe it\nthe way you\'d say it out loud</string>
     <string name="search_words_title">No saved words match</string>
     <string name="search_words_hint">ranked search is out of reach, so this\nlooked for the words themselves</string>
 
-    <!-- Reading R7: opening and sharing saved originals (design §11, §12, §16) -->
+    <!-- Reading R7: opening and sharing saved originals -->
     <string name="detail_action_open_original">Open original</string>
     <string name="detail_action_open_link">Open link</string>
     <string name="detail_action_copy_text">Copy text</string>
@@ -95,11 +95,11 @@
     <string name="capture_clipboard_sensitive">Not saved: clipboard is marked sensitive</string>
     <string name="capture_clipboard_unreadable">Couldn\'t read the clipboard</string>
 
-    <!-- Capture workstream: launcher shortcut (design §13, §16) -->
+    <!-- Capture workstream: launcher shortcut -->
     <string name="shortcut_keep_short">Keep</string>
     <string name="shortcut_keep_long">Keep something</string>
 
-    <!-- Capture workstream C9: the "+" composer and button (design §8, §13, §16) -->
+    <!-- Capture workstream C9: the "+" composer and button -->
     <string name="keep_title">Keep something</string>
     <string name="keep_button_description">Keep something</string>
     <string name="keep_button_description_draft">Keep something — a draft is waiting</string>

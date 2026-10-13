@@ -7,7 +7,7 @@ plugins {
 }
 
 android {
-    namespace = "com.lbc.breadcrumb"
+    namespace = "com.actum"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -15,21 +15,16 @@ android {
     }
 
     defaultConfig {
-        // The same as the code's namespace, and permanent once published. adb
-        // commands, the test runner (com.lbc.breadcrumb.test) and the launcher
-        // shortcut's targetPackage use it.
-        applicationId = "com.lbc.breadcrumb"
+        // Actum's own id, so it installs beside Actum. The code's namespace
+        // is still Actum's until the reused code is moved. adb commands and
+        // the model's sideload path use this.
+        applicationId = "com.actum.app"
         minSdk = 29
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-
-        // The dev machine's server, reached through `adb reverse tcp:3000 tcp:3000`.
-        // Deployment is deferred, so every build points here for now; a release
-        // build cannot reach it anyway, since only debug permits cleartext.
-        buildConfigField("String", "SERVER_URL", "\"http://localhost:3000\"")
     }
 
     buildTypes {
@@ -73,13 +68,10 @@ dependencies {
     implementation(libs.androidx.work.runtime)
     ksp(libs.androidx.room.compiler)
     implementation(libs.mlkit.text.recognition)
-    implementation(libs.mlkit.entity.extraction)
-    implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.litertlm.android)
     implementation(libs.coil.compose)
     testImplementation(libs.junit)
-    testImplementation(libs.okhttp.mockwebserver)
     // Virtual time testing for TwoStageSearch flow debouncing and step execution (§9)
     testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(platform(libs.androidx.compose.bom))

@@ -1,135 +1,172 @@
-# Breadcrumb
+# Actum
 
-**A search engine for your own memory.**
+**Share it, find it, do something with it — all on the phone.**
 
-Save anything in one tap. Find it later by describing it the way you actually remember it.
+Actum is an Android app with no internet permission. It keeps what you share into it
+(screenshots, pictures, PDFs, text), lets you find it again by describing it, and turns
+what you type or say into an action you confirm with one tap: a calendar event, an alarm,
+an expense, a to-do, a contact or a diary entry.
 
-🏆 **1st place at [Hackinverse 1.0](https://hackinverse-s1.devfolio.co/overview).** Project page on
-[Devfolio](https://devfolio.co/projects/breadcrumb-54b8).
+## What it does
 
----
+**Keep and find.** Share anything to Actum from another app, or copy it and tap the Actum
+Quick Settings tile. Pictures and PDFs are read by on-device OCR. The search field finds
+things by meaning ("when does my plane leave" finds a saved flight note) and by words.
 
-## The problem
+**Ask.** Type a request in the same field and tap **Do this**, or tap the microphone and
+say it. Your spoken words appear as they are heard and can be corrected before they are
+used.
 
-We save information everywhere and find it nowhere.
+**Two ways a request is read.**
 
-Screenshots, links, PDFs, photos, recommendations: they end up scattered across a dozen apps.
-Later you remember *what* you saved and roughly the context around it, but not *where* you put
-it. So you search your gallery, then your bookmarks, then WhatsApp, and eventually give up.
+- A plain, direct command ("set an alarm for 7 am", "remind me in 8 minutes", "buy eggs,
+  bread and butter", "paid Rahul 500", "save Ankit's number 98300 12345", "diary: …") is
+  read by fixed rules, instantly. The card says so and offers **not right? ask Gemma**.
+- Everything else, and every saved picture, PDF or note (**Find things to do in this**),
+  is read by an on-device Gemma model.
 
-Research on re-finding information bears this out: people fall back on bookmarking (~80%),
-searching again from scratch (~54%), re-typing URLs (~51%), even emailing things to themselves
-(~36%), and no single method covers everything they need. Existing tools each solve a slice.
-None unify personal information retrieval.
+Either way, plain Kotlin resolves the dates, times, amounts and phone numbers and checks
+every field against your own words. Each action is shown as a card, and nothing happens
+until you tap its button.
 
-## The idea
+| Action | What confirming does |
+| --- | --- |
+| Calendar event | Opens your calendar app with the event filled in. You save it there. |
+| Alarm | Hands the time to your clock app. A reminder for another day opens in the calendar instead, because the clock app cannot take a date. |
+| Expense | Adds a line to Actum's own ledger. |
+| To-do | Adds items to Actum's own list. |
+| Contact | Opens your contacts app with the name and number filled in. |
+| Diary | Stores the entry encrypted on the phone. Reading it needs the diary password you set, which you can change later. |
+| Explain | Shows a restatement of a notice. Nothing is run, and it is not advice. |
+| Anything else | "Actum can't do this yet", and nothing is done. |
 
-Breadcrumb is two flows and nothing else:
+On a card, a tick means the field was checked against what you wrote, a question mark
+means it needs a look or a choice ("morning or evening?"), and an exclamation mark means
+it is missing. Tap a field to change it; your change goes through the same checks.
 
-> **Save → Forget about it → Search → Find**
+**Speaking to the diary.** After speaking, **Save to diary** stores your words exactly as
+said, with no model in between.
 
-**Saving is frictionless.** Share sheet or a Quick Settings tile. No folders, no tags, no titles,
-no organizing. You are never asked to do work at save time.
+**Lists.** The **to-dos · calendar · more** link opens five tabs: to-dos, a month calendar
+that marks the days of events and reminders you confirmed, expenses, the diary, and a log
+of every confirmed action.
 
-**Retrieval is the product.** One search bar. You type what you remember:
+**Light and dark.** The sun or moon on the home screen switches between the two looks.
 
-- *"that internship screenshot from April"*
-- *"the restaurant somebody recommended"*
-- *"that guy from the hackathon who worked at Qualcomm"*
-- *"the PDF my professor sent"*
+## Privacy
 
-It finds the thing even when your words don't match the original content, because it
-understands meaning and context, not just keywords.
+The app does not request `android.permission.INTERNET`, so Android gives it no way to
+open a connection. The **privacy** link on the home screen reads the installed app's
+permissions at that moment and lists them.
 
-## Reference memory, not action memory
+What Actum does not control:
 
-- **Action memory**: *"I need to **do** something later."* Pay a bill, submit an assignment.
-  Calendars, reminders and task managers already do this well. Breadcrumb doesn't compete here.
-- **Reference memory**: *"I need to **remember** something later."* A restaurant rec, a useful
-  article, an internship posting, a person you met at an event. Nothing needs to happen with
-  these. You just want to find them again.
+- An event or contact you confirm is handed to your calendar or contacts app, which may
+  sync it to its own account.
+- Speech is turned into words by Android's on-device speech recognizer, a system service.
+  Actum uses only the on-device one and refuses to listen if the phone has none.
+- The microphone permission is used while the voice sheet is listening and at no other
+  time. Only the words are kept, never the audio.
+- Backups are disabled for the app.
 
-Breadcrumb is only the second one. It is **not** a notes app, a bookmark manager, a task manager,
-or a second brain. It should feel like a personal search engine, not a digital notebook.
+## Measured on the reference phone
 
-## How it works
+Nothing A001T (MediaTek Dimensity 7300, 8 GB RAM), Android 16, Gemma 4 E2B on the CPU
+through LiteRT-LM 0.18.0, 13 October 2026. Phone on charge, battery at 39–42 °C.
 
-**Saving**
+| | Median | Worst | Correct |
+| --- | --- | --- | --- |
+| One sentence with three actions, 5 runs | 12.0 s | 13.3 s | 5 of 5 |
+| 30-sentence English test set, per sentence | 6.0 s | 13.4 s | 29 of 30 |
 
+- Direct-command rules read 9 of those 30 sentences, all correctly, without the model.
+- Model load: about 2 s warm. Reading the instructions into the model takes about 4 s and
+  is done ahead of time, when you start typing or open the microphone, so it is not part
+  of the figures above.
+- The one miss ("what is the capital of Australia") returns nothing, which Actum shows as
+  a refusal.
+- The test set was used to find and fix faults and then run again, so 29 of 30 is not a
+  held-out number.
+- The GPU was slower on this phone: 40 s to load and about 50 s per answer.
+
+The full history, and results from other phones, are in [benchmarks/](benchmarks/).
+
+## Limits
+
+- **English only.** Typed Hinglish and Benglish in Roman letters worked on the one
+  sentence tried, and the date and time parsers read some Hindi and Bengali words, but
+  no test set exists for either, so there is no accuracy figure.
+- **Voice needs an English speech pack installed in Android.** Android installs packs
+  itself; Actum cannot download one. One take ends at the first long pause; "say more"
+  adds another.
+- **OCR reads Latin script only.** Bengali and Devanagari screenshots are saved but their
+  text is not read.
+- **The models are sideloaded.** Neither is in the APK or downloaded by the app.
+- **Only the first 1,200 characters** of a long screenshot or PDF are read for actions.
+- **Only the diary is encrypted and locked.** The ledger, to-dos, saved items, calendar
+  marks and the log are in the app's private storage, unencrypted.
+- **A forgotten diary password cannot be reset.** Entries are sealed to a key that only
+  the password unwraps. Actum keeps no copy of it.
+- **The calendar tab shows only what was confirmed in Actum.** It does not read the
+  phone's calendar, and removing a mark there removes neither the event nor the alarm.
+- **Rules read only what they are sure of.** A sentence with a second clause, a negation
+  or anything unexpected goes to Gemma and takes seconds, not milliseconds.
+- **The log search is a substring match.** No read-aloud. No settings screen.
+
+## What you need
+
+- An Android phone on Android 10 or later, 64-bit ARM. Voice needs Android 12 or later.
+- About **3.5 GB free** on the phone: 2.59 GB and 0.39 GB for the two models, about
+  0.2 GB for the app.
+- 8 GB of RAM is what it has been run on. Less is untested.
+- A computer with JDK 21, the Android SDK (API 36.1) and `adb`, and about 3 GB free for
+  the model files.
+
+## Build and install
+
+```sh
+cd android
+./gradlew installDebug
 ```
-share / tile / "+"  →  saved on the phone, instantly  →  background work, on the phone
-                                                                ↓
-                                    OCR of pictures, PDFs' text, links' pages and previews
-                                                                ↓
-                                    EmbeddingGemma 2 turns it into a vector (a picture with
-                                    no words is embedded as a picture)
+
+Download the two models to a `models/` folder (it is git-ignored) and check them:
+
+```sh
+mkdir -p models && cd models
+curl -L -O https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/b3ca0d2f076785a8f4b2219ddbd2bdb99954eae1/gemma-4-E2B-it.litertlm
+curl -L -O https://huggingface.co/litert-community/embeddinggemma-2-text-vision-440m-litert-lm/resolve/e301f74d5551b0c2641bd5cb4652a76239d5c5f8/embeddinggemma-2-text-vision-440m.litertlm
+sha256sum *.litertlm
 ```
 
-Saving never waits on the network, and nothing you save leaves the phone. Search works in
-airplane mode.
+| File | Bytes | SHA-256 |
+| --- | --- | --- |
+| `gemma-4-E2B-it.litertlm` | 2,588,147,712 | `181938105e0eefd105961417e8da75903eacda102c4fce9ce90f50b97139a63c` |
+| `embeddinggemma-2-text-vision-440m.litertlm` | 387,710,976 | `92dcbea108899e5d6e30d919b0744f90d9967e80c67a4ab5503ac16d54f62eb0` |
 
-**Retrieving**
+Open Actum once so its folder exists, then push them:
 
-```
-"that internship screenshot from April"
-              ↓
-    the phrase is embedded on the phone, and scored against every memory
-              ↓
-    fused with the phone's own word search, by rank
-              ↓
-    narrowed by date, type and app, when the cloud may read the phrase
-              ↓
-    ranked memories → tap to open the original
+```sh
+adb push models/gemma-4-E2B-it.litertlm /sdcard/Android/data/com.actum.app/files/
+adb push models/embeddinggemma-2-text-vision-440m.litertlm /sdcard/Android/data/com.actum.app/files/
 ```
 
-Meaning and words together, because the queries people actually type are full of proper nouns:
-"Qualcomm" needs words while the rest of the sentence needs meaning.
+Actum checks the Gemma file's SHA-256 before loading it. Without the embedding model,
+search works by words only. Without the Gemma model, direct commands still work and
+everything else says the model is not on the phone.
 
-**What leaves the phone** is up to the person, under "privacy" on the home screen:
+Both models are Apache 2.0. Fonts are OFL (licences in `android/app/src/main/assets/licenses/`).
 
-- **Understand searches in the cloud** (on by default): what you type goes, and the names of
-  the apps and sites your saves came from, so that "from April", "screenshot" or "on WhatsApp"
-  become filters.
-- **Gemini reads my memories** (off by default): for one-line summaries. Phone numbers, emails,
-  addresses, cards, IDs and OTPs are stripped first; pictures and saves from banking and
-  password apps never go.
+## Where things are
 
-With both off, the app never talks to a server.
+Everything is under `android/app/src/main/java/com/actum/`:
 
-## Stack
+- `model/` — Gemma, the rules for direct commands, the JSON envelope and its repair, and
+  the check that an answer is about what was said.
+- `parse/`, `validate/` — dates, times, amounts, phone numbers, and the field checks.
+- `act/` — the request flow and what confirming does.
+- `voice/` — on-device speech to text.
+- `data/` — lists, calendar marks, diary and its lock, the log.
+- `capture/`, `ocr/`, `embed/`, `ui/` — sharing in, reading pictures, search, screens.
 
-| | |
-|---|---|
-| **Mobile** | Native Android: Kotlin, Jetpack Compose, Room (with full-text search), WorkManager |
-| **On-device AI** | EmbeddingGemma 2 through LiteRT-LM (text and pictures), ML Kit Text Recognition and Entity Extraction |
-| **Backend (optional)** | Node + Express + TypeScript, MongoDB Atlas with Atlas Vector Search |
-| **Cloud AI (optional)** | Gemini Flash Lite (reading a search phrase; summaries when allowed), `gemini-embedding-001` |
-
-Native Android rather than a cross-platform framework: every capture surface is an Android
-platform surface, and every save is a cold start, so a native capture path is the difference
-between saving feeling free and saving feeling like a wait.
-
-## Layout
-
-```
-android/    Android app (build it with ./gradlew from this folder)
-server/     Express API
-docs/       the API contract, and one brief per workstream
-tools/      generate_icons.py, which draws the launcher and splash icons
-```
-
-## Team
-
-Built by [Suparno](https://suparno.me), [Ayushi](https://github.com/aeryxii), [Dhrubaparna](https://github.com/DhrubaIsha2006) and [Aritra](https://github.com/AM2004legend). Who builds what:
-[`CLAUDE.md`](CLAUDE.md), "Team and workstreams".
-
-## Status
-
-Won 1st place at Hackinverse 1.0. Capture, reading, search on the phone, the screens and the
-privacy switches are all in; [`CLAUDE.md`](CLAUDE.md) tracks what's next.
-
-## Why "Breadcrumb"
-
-From leaving breadcrumbs while walking through a forest. You don't know when you'll want to
-return somewhere, so you leave a trail as you go. You drop small pieces of information as you
-move through your digital life, then follow the trail back when you need something.
+`AGENTS.md` has the detail for anyone changing the code. `tools/generate_icons.py`
+rebuilds every icon from `tools/actum-icon.png`.

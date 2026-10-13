@@ -1,194 +1,97 @@
-"""Generate Breadcrumb launcher icons and splash assets.
+"""Builds every Actum icon the Android app ships from one picture, tools/actum-icon.png.
 
-The mark is a trail of crumbs: five discs following a curve, growing and
-brightening toward the end, on a deep warm ink ground. Discrete dots, not a
-connected line -- crumbs are dropped one at a time.
+That picture is the mark as designed: a black "A" on a beige rounded square, on
+black. This lifts the letter off its ground and writes:
+
+  mipmap-*/ic_launcher_foreground.png   the letter, for the adaptive icon
+  mipmap-*/ic_launcher_monochrome.png   the same, for themed icons (the system tints it)
+  mipmap-*/ic_launcher_background.png   the beige
+  mipmap-*/ic_launcher.png, _round.png  the whole icon, for launchers without adaptive icons
+  drawable-*/splash_icon.png            the letter, for the launch screen
+  drawable-*/ic_tile.png                the letter in white, for the Quick Settings tile
+  drawable-nodpi/mark.png               the letter in white, tinted by the app wherever it shows its mark
 
 Run from the repo root:  python tools/generate_icons.py
-
-Writes:
-  android/app/src/main/res/mipmap-*/ic_launcher.png
-  android/app/src/main/res/mipmap-*/ic_launcher_round.png
-  android/app/src/main/res/mipmap-*/ic_launcher_foreground.png
-  android/app/src/main/res/mipmap-*/ic_launcher_background.png
-  android/app/src/main/res/mipmap-*/ic_launcher_monochrome.png
-  android/app/src/main/res/drawable-*/splash_icon.png
-  android/app/src/main/ic_launcher-playstore.png
-  tools/preview.png
 """
-
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageFilter
+
+from PIL import Image, ImageChops, ImageDraw
 
 ROOT = Path(__file__).resolve().parent.parent
+SOURCE = ROOT / "tools" / "actum-icon.png"
 RES = ROOT / "android" / "app" / "src" / "main" / "res"
-MAIN = ROOT / "android" / "app" / "src" / "main"
 
-SS = 4                 # supersample factor for clean edges
-M = 512                # master logical size
-N = M * SS             # supersampled canvas
-
-# --- palette -----------------------------------------------------------
-INK_OUTER = (14, 11, 9)
-INK_INNER = (48, 36, 26)
-BRAND_BG = "#171310"   # splash window background
-
-# crumbs: (radius as fraction of canvas, alpha, rgb), evenly spaced along the curve
-CRUMBS = [
-    (0.037, 110, (232, 152, 32)),
-    (0.047, 150, (240, 164, 42)),
-    (0.059, 190, (245, 177, 60)),
-    (0.073, 225, (250, 191, 90)),
-    (0.090, 255, (255, 208, 138)),
-]
-
-# Curve the trail follows, in normalised canvas coords. Endpoints and radii are
-# sized so the whole mark clears the adaptive-icon mask AND the round mask --
-# the first pass had the largest crumb clipped off the top-right corner.
-P0, P1, P2, P3 = (0.285, 0.685), (0.365, 0.730), (0.560, 0.590), (0.645, 0.350)
-
-# adaptive icons and the Android 12 splash both keep art inside the centre 2/3
-SAFE = 2 / 3
+DENSITIES = {"mdpi": 1.0, "hdpi": 1.5, "xhdpi": 2.0, "xxhdpi": 3.0, "xxxhdpi": 4.0}
 
 
-def cubic(t):
-    mt = 1 - t
-    x = mt**3 * P0[0] + 3 * mt * mt * t * P1[0] + 3 * mt * t * t * P2[0] + t**3 * P3[0]
-    y = mt**3 * P0[1] + 3 * mt * mt * t * P1[1] + 3 * mt * t * t * P2[1] + t**3 * P3[1]
-    return x, y
+def letter_and_ground():
+    """The letter as an alpha mask cropped to its own edges, and the beige behind it."""
+    picture = Image.open(SOURCE).convert("RGB")
+    ground = picture.getpixel((picture.width // 2, picture.height // 8))
+    grey = picture.convert("L")
+    # Dark is the letter, but so are the black corners outside the rounded square.
+    # Flood those from each corner with white, and only the letter stays dark.
+    for corner in [(0, 0), (grey.width - 1, 0), (0, grey.height - 1), (grey.width - 1, grey.height - 1)]:
+        ImageDraw.floodfill(grey, corner, 255, thresh=120)
+    light = sum(ground) / 3
+    mask = grey.point(lambda v: max(0, min(255, round((light - v) * 255 / light))))
+    # The rounded square's own soft edge is left as a faint ring where the flood stopped.
+    # It is far from the letter: clear everything outside the letter's solid extent.
+    solid = mask.point(lambda a: 255 if a > 128 else 0).getbbox()
+    box = (solid[0] - 6, solid[1] - 6, solid[2] + 6, solid[3] + 6)
+    return mask.crop(box), ground
 
 
-def even_points(n):
-    """Space n points by arc length, not by bezier parameter.
+def placed(mask, canvas, share, colour):
+    """[mask] filled with [colour], centred on a clear square [canvas] wide, its longer side [share] of it."""
+    scale = canvas * share / max(mask.size)
+    size = (max(1, round(mask.width * scale)), max(1, round(mask.height * scale)))
+    small = mask.resize(size, Image.LANCZOS)
+    layer = Image.new("RGBA", (canvas, canvas), (0, 0, 0, 0))
+    fill = Image.new("RGBA", size, colour + (255,))
+    layer.paste(fill, ((canvas - size[0]) // 2, (canvas - size[1]) // 2), small)
+    return layer
 
-    Sampling t uniformly bunches the crumbs where the curve is slow, which read
-    as a kinked line rather than a trail.
-    """
-    steps = 2000
-    pts = [cubic(i / steps) for i in range(steps + 1)]
-    cum = [0.0]
-    for i in range(1, len(pts)):
-        dx, dy = pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]
-        cum.append(cum[-1] + (dx * dx + dy * dy) ** 0.5)
-    total = cum[-1]
-    out, j = [], 0
-    for k in range(n):
-        target = total * k / (n - 1)
-        while j < len(cum) - 1 and cum[j] < target:
-            j += 1
-        out.append(pts[j])
+
+def shaped(image, radius_share):
+    """[image] clipped to a rounded square; 0.5 makes it a circle."""
+    big = image.width * 4
+    mask = Image.new("L", (big, big), 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, big - 1, big - 1), radius=big * radius_share, fill=255)
+    out = image.copy()
+    out.putalpha(ImageChops.multiply(out.getchannel("A"), mask.resize(image.size, Image.LANCZOS)))
     return out
 
 
-def disc(draw, cx, cy, r, fill):
-    draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=fill)
-
-
-def make_background():
-    """Deep ink with a soft warm glow offset toward the bright end of the trail."""
-    g = Image.new("RGB", (96, 96))
-    px = g.load()
-    gx, gy = 0.66 * 96, 0.36 * 96
-    for y in range(96):
-        for x in range(96):
-            d = (((x - gx) / 96) ** 2 + ((y - gy) / 96) ** 2) ** 0.5
-            k = max(0.0, 1.0 - d / 0.85) ** 1.7
-            px[x, y] = tuple(
-                int(INK_OUTER[i] + (INK_INNER[i] - INK_OUTER[i]) * k) for i in range(3)
-            )
-    return g.resize((N, N), Image.BICUBIC)
-
-
-def make_foreground(mono=False):
-    """The crumb trail on transparency, art confined to the centre 2/3."""
-    img = Image.new("RGBA", (N, N), (0, 0, 0, 0))
-
-    pts = even_points(len(CRUMBS))
-
-    # Restrained glow behind the brightest crumb -- enough to give the end of the
-    # trail some lift, not enough to haze the disc edge.
-    if not mono:
-        glow = Image.new("RGBA", (N, N), (0, 0, 0, 0))
-        gd = ImageDraw.Draw(glow)
-        gx, gy = pts[-1]
-        disc(gd, gx * N, gy * N, 0.135 * N, (255, 190, 105, 38))
-        glow = glow.filter(ImageFilter.GaussianBlur(0.042 * N))
-        img.alpha_composite(glow)
-
-    d = ImageDraw.Draw(img)
-    for (cx, cy), (r, a, rgb) in zip(pts, CRUMBS):
-        fill = (255, 255, 255, a) if mono else (*rgb, a)
-        disc(d, cx * N, cy * N, r * N, fill)
-    return img
-
-
-def down(img, size):
-    return img.resize((size, size), Image.LANCZOS)
-
-
-def centre_crop(img):
-    """Crop to the adaptive-icon safe zone, matching what the launcher mask shows."""
-    inset = int(N * (1 - SAFE) / 2)
-    return img.crop((inset, inset, N - inset, N - inset))
-
-
-def round_mask(size):
-    m = Image.new("L", (size * SS, size * SS), 0)
-    ImageDraw.Draw(m).ellipse([0, 0, size * SS, size * SS], fill=255)
-    return m.resize((size, size), Image.LANCZOS)
-
-
-def write(img, path):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    img.save(path)
-    print(f"  {path.relative_to(ROOT)}  {img.size[0]}px")
+def save(image, folder, name):
+    target = RES / folder
+    target.mkdir(parents=True, exist_ok=True)
+    image.save(target / name, optimize=True)
 
 
 def main():
-    bg = make_background().convert("RGBA")
-    fg = make_foreground()
-    mono = make_foreground(mono=True)
+    mask, ground = letter_and_ground()
+    black = (10, 10, 10)
+    for density, factor in DENSITIES.items():
+        # Adaptive layers are 108 dp; launchers show the middle 72 and may crop to 66, so the letter stays inside that.
+        layer = round(108 * factor)
+        letter = placed(mask, layer, 0.5, black)
+        save(letter, f"mipmap-{density}", "ic_launcher_foreground.png")
+        save(letter, f"mipmap-{density}", "ic_launcher_monochrome.png")
+        save(Image.new("RGBA", (layer, layer), ground + (255,)), f"mipmap-{density}", "ic_launcher_background.png")
 
-    # full-bleed composite, then cropped to what the launcher actually shows
-    flat = centre_crop(Image.alpha_composite(bg, fg))
+        legacy = round(48 * factor)
+        whole = Image.new("RGBA", (legacy, legacy), ground + (255,))
+        whole.alpha_composite(placed(mask, legacy, 0.66, black))
+        save(shaped(whole, 0.22), f"mipmap-{density}", "ic_launcher.png")
+        save(shaped(whole, 0.5), f"mipmap-{density}", "ic_launcher_round.png")
 
-    # adaptive icon layers are 108dp; legacy icons are 48dp
-    adaptive = {"mdpi": 108, "hdpi": 162, "xhdpi": 216, "xxhdpi": 324, "xxxhdpi": 432}
-    legacy = {"mdpi": 48, "hdpi": 72, "xhdpi": 96, "xxhdpi": 144, "xxxhdpi": 192}
-    # Android 12 splash icon is 288dp with art inside a 192dp circle
-    splash = {"mdpi": 288, "hdpi": 432, "xhdpi": 576, "xxhdpi": 864, "xxxhdpi": 1152}
-
-    print("adaptive layers:")
-    for d, s in adaptive.items():
-        write(down(bg, s), RES / f"mipmap-{d}" / "ic_launcher_background.png")
-        write(down(fg, s), RES / f"mipmap-{d}" / "ic_launcher_foreground.png")
-        write(down(mono, s), RES / f"mipmap-{d}" / "ic_launcher_monochrome.png")
-
-    print("legacy icons:")
-    for d, s in legacy.items():
-        sq = down(flat, s)
-        write(sq, RES / f"mipmap-{d}" / "ic_launcher.png")
-        rnd = sq.copy()
-        rnd.putalpha(round_mask(s))
-        write(rnd, RES / f"mipmap-{d}" / "ic_launcher_round.png")
-
-    print("splash icon:")
-    for d, s in splash.items():
-        write(down(fg, s), RES / f"drawable-{d}" / "splash_icon.png")
-
-    print("store + preview:")
-    write(down(flat, 512), MAIN / "ic_launcher-playstore.png")
-
-    # side-by-side preview: full bleed, launcher-cropped, round, and small
-    pv = Image.new("RGBA", (880, 260), (24, 24, 28, 255))
-    pv.alpha_composite(down(Image.alpha_composite(bg, fg), 200), (30, 30))
-    pv.alpha_composite(down(flat, 200), (260, 30))
-    r = down(flat, 200)
-    r.putalpha(round_mask(200))
-    pv.alpha_composite(r, (490, 30))
-    pv.alpha_composite(down(flat, 96), (720, 30))
-    pv.alpha_composite(down(flat, 48), (720, 140))
-    write(pv, ROOT / "tools" / "preview.png")
+        # The launch screen shows a 288 dp picture through a circle two thirds as wide.
+        save(placed(mask, round(288 * factor), 0.42, black), f"drawable-{density}", "splash_icon.png")
+        save(placed(mask, round(24 * factor), 0.92, (255, 255, 255)), f"drawable-{density}", "ic_tile.png")
+    # The mark the app draws on its own screens, in white for the app to tint.
+    save(placed(mask, 256, 1.0, (255, 255, 255)), "drawable-nodpi", "mark.png")
+    print("ground", "#%02X%02X%02X" % ground)
 
 
 if __name__ == "__main__":

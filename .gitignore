@@ -16,3 +16,6 @@ node_modules/
 # os
 Thumbs.db
 .DS_Store
+
+# the sideloaded Gemma model (2.6 GB), never committed
+models/

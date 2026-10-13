@@ -1,263 +1,120 @@
-# CLAUDE.md — Motus build context and guardrails
+# CLAUDE.md — Actum's rules
 
-You are the coding agent building **Motus**. Read this whole file before writing any
-code. Follow it over your own defaults. When something here conflicts with a habit
-(for example "write full tests first"), this file wins.
+You are working on **Actum**. Read this file and `AGENTS.md` before changing anything.
+This file is the rules and what the product is. `AGENTS.md` is how the code is laid out,
+how to build and run it on a phone, and what is known to be unfinished. Follow both over
+your own defaults.
 
----
+## What Actum is
 
-## 0. What you are building, in one paragraph
+An **offline Android app** that does two things, both on the phone:
 
-Motus is an **offline Android app** that turns one shared thing (a screenshot, photo,
-typed text or voice note — often in Bengali, Hindi, Hinglish or English) into the
-**right action after one confirmation tap**. The user shares into Motus; an on-device
-**Gemma** model decides which of a fixed list of actions it is and extracts the fields;
-**plain Kotlin code** validates and executes the action through normal Android intents or
-a local database. Nothing leaves the phone. It is **not** a chatbot, not an assistant,
-not a second-brain. Its job is **action, not retrieval or conversation.**
+1. **Keeps and finds.** Whatever is shared into it (text, screenshots, pictures, PDFs) is
+   saved, read by OCR, and searchable by meaning and by words.
+2. **Does.** A request that is typed, spoken, or found in a saved item becomes the right
+   action after one confirming tap.
 
-If you ever find yourself building a chat screen, a "search everything" screen, a cloud
-call, or an open-ended agent, stop — that is the wrong product.
+It is not a chatbot, not an open-ended assistant, and it never talks to a server. If you
+find yourself building a chat screen, a cloud call or an agent that acts on its own, stop.
 
----
+English only for now. Hindi, Hinglish, Bengali and Benglish are wanted later.
 
-## 1. Hard guardrails (do not break these)
+## Rules that must not be broken
 
-1. **No network.** The app must NOT declare the `INTERNET` permission. No cloud APIs,
-   no analytics SDK, no crash-reporting that uploads, no ads. Audit every dependency you
-   add; if it needs the network, do not use it.
-2. **Closed action list.** Only the intents in section 4 exist. Anything else returns
-   `UNSUPPORTED` and the app says so. Never invent a new action type.
-3. **Confirm before execute.** Nothing happens without a user tap on a preview card.
-   The model never triggers a side effect directly.
+1. **No network.** The app must not have the `INTERNET` permission. Libraries merge it in,
+   so the manifest removes it; check the built APK after any dependency change. No cloud
+   APIs, analytics, crash uploaders or ads. Models are sideloaded, never downloaded by
+   the app.
+2. **Closed action list.** `EVENT, ALARM, EXPENSE, CONTACT, TODO, DIARY, EXPLAIN,
+   UNSUPPORTED`. Anything else is `UNSUPPORTED` and the app says so. Do not add an action
+   unless the owner asks.
+3. **Confirm before execute.** Nothing happens without a tap on a card (or, for a spoken
+   diary entry, on **Save to diary**). Neither the model nor a rule triggers a side
+   effect.
 4. **Deterministic code does the real work.** Dates, times, amounts, phone numbers,
-   validation, storage and Android actions are plain Kotlin. The model only interprets
-   messy language and picks the intent. Never let the model compute a date or decide
-   whether something is valid.
-5. **No fake success, no invented claims.** If a field is missing or unsure, show the
-   amber/red state and ask. Never display success for something that did not execute.
-   Never put a capability in the UI or README that is not actually implemented.
-6. **No sensitive advice.** The Explain action restates a document only. No medical,
-   legal or financial advice anywhere.
-7. **Verify before you assert.** If you are unsure of a library name, a Gradle
-   dependency, an Android API or a model file name, check current official docs or ask —
-   do not guess. Facts in this file are marked (VERIFIED) or (UNVERIFIED); treat
-   UNVERIFIED as "must test on the real phone."
+   validation, storage and Android actions are plain Kotlin. The model and the rules only
+   propose. The model is never told today's date and never computes one.
+5. **Two readers, one path.**
+   - **Rules** read only plain, direct commands, and only when the whole sentence fits a
+     pattern. A rule is right or silent, never a best guess. Anything with a second
+     clause, a negation, a question or an unexpected word goes to the model.
+   - **Gemma** reads everything else, and always reads saved pictures, PDFs and notes.
+   - Both produce the same kind of proposal, which goes through the same validator, the
+     same card and the same confirmation.
+6. **An answer must be about what was said.** A model reply whose actions are not
+   grounded in the person's words is dropped, not shown.
+7. **No fake success, no invented claims.** Show what actually happened. A missing or
+   unsure field is marked and blocks or questions the action. Never put a capability in
+   the UI or the README that is not built and checked.
+8. **No sensitive advice.** `EXPLAIN` restates a document only. No medical, legal or
+   financial advice anywhere.
+9. **Voice stays on the phone.** Only Android's on-device speech recognizer. If the phone
+   has none, say so and do not listen. Keep the words, never the audio.
+10. **Verify before you assert.** For a library API, a dependency or a model file, read
+    the real artifact or current official docs. Do not guess.
 
----
+## The actions
 
-## 2. Reuse Breadcrumb — recycle, don't rebuild
-
-There is an existing repo, **Breadcrumb** (native Kotlin + Jetpack Compose Android app).
-**Before writing new code, read it** and reuse what already works. The goal is speed:
-do not re-solve problems Breadcrumb already solved.
-
-**Step 2a — inventory the repo first.** Start by reading, in this order:
-- the Android `build.gradle(.kts)` files (modules, dependencies, SDK/Java versions),
-- the `AndroidManifest.xml` (permissions, share-sheet intent filters, Quick Settings tile),
-- the share-sheet / capture entry code,
-- the ML Kit OCR integration,
-- the Room database setup (entities, DAOs, database class),
-- any WorkManager usage,
-- the Compose theme / design system files.
-
-Produce a short written inventory: **"reuse as-is / adapt / ignore"** for each of
-the above, with file paths. Do this before milestone M1.
-
-**Reuse as-is where possible:**
-- Share-sheet intent filters and the capture receiver.
-- Quick Settings `TileService`.
-- ML Kit text recognition (OCR) wiring — keep the **bundled** model variant so it works
-  offline. (Check which scripts it supports; Bengali support is UNVERIFIED.)
-- Room scaffolding (database class, migration setup, DAO patterns).
-- Compose theme, colors, typography, spacing.
-
-**Do NOT reuse:**
-- Breadcrumb's backend (Node/Express), MongoDB Atlas, vector search, or any Gemini
-  **cloud** API calls. Motus is offline. Strip those paths out of anything you copy.
-- Breadcrumb's retrieval / second-brain UX. Motus's home is actions, not search.
-
-Known Breadcrumb dev setup (from project notes, VERIFY against the repo): Java 21,
-Android SDK API 36.1, Gradle wrapper, build with `gradlew installDebug`. Tested on
-physical Android phones.
-
-**On tests:** do not spend time writing an exhaustive test suite or chasing coverage.
-Reuse Breadcrumb's existing tests if they still pass; don't fix unrelated failing tests.
-The one exception is the **field parsers** (section 5) — those get small unit tests
-because a wrong date or amount breaks the demo. Everything else is verified by the
-**manual check** listed on each task. Speed over ceremony.
-
----
-
-## 3. Tech stack (confirm names against current docs before coding)
-
-- **Language / UI:** Kotlin, Jetpack Compose, Material 3. Match Breadcrumb's versions.
-- **Model runtime:** Google AI Edge **LiteRT-LM** for on-device Gemma (`.litertlm`).
-  Look up the exact current Gradle dependency and API — do not assume. (UNVERIFIED API
-  surface.)
-- **Model (demo baseline):** **Gemma (E2B, text-only)** loaded from the app's files dir.
-  Baseline first because it needs no training. A smaller / faster Gemma-family router is
-  a later optimization, not the starting point.
-- **OCR:** ML Kit text recognition, bundled, offline.
-- **Storage:** Room. Encrypt the DB (SQLCipher or a Keystore-backed key). FTS table for
-  the local log search.
-- **Voice (optional / stretch):** Android `SpeechRecognizer` offline if a language pack
-  exists (UNVERIFIED for Bengali); otherwise accept shared audio or typed text.
-- **App lock:** `BiometricPrompt` / device credential for diary and ledger.
-- **Model distribution for the hackathon:** sideload the model with `adb` into the app's
-  files dir and verify its published SHA-256 before loading. (Honest README note: a
-  shipping app would download it on first run.)
-
-**Demo phone:** user's phone, assumed Nothing Phone (3a) Lite — Dimensity 7300 Pro, 8GB
-RAM (VERIFIED for that model; UNVERIFIED that it is the exact phone). Expect CPU-bound
-inference. **Measure latency early** (see M1 gate).
-
----
-
-## 4. The closed action list
-
-Model returns **strict JSON only**, this envelope, up to 5 actions per input:
+The model returns strict JSON, at most 5 actions:
 
 ```json
 { "actions": [
   { "intent": "EVENT|ALARM|EXPENSE|CONTACT|TODO|DIARY|EXPLAIN|UNSUPPORTED",
-    "confidence": 0.0,
     "fields": { },
     "source_span": "the words from the input that justify this action" }
 ] }
 ```
 
-| Intent | Fields (required*) | Executor |
-|---|---|---|
-| EVENT | title*, date_text*, time_text, location, notes | Calendar `ACTION_INSERT` intent, prefilled; user confirms in their calendar app (no calendar permission needed) |
-| ALARM | label, time_text*, date_text, repeat_days | `AlarmClock.ACTION_SET_ALARM` |
-| EXPENSE | amount*, currency(INR), counterparty_or_merchant, category(enum), date_text, direction(spent/owed_to_me/i_owe) | insert into local Room ledger |
-| CONTACT | name*, phone*(validated), note | Contacts insert intent, prefilled |
-| TODO | items*(list), list_name | insert into local Room list |
-| DIARY | text*(verbatim), entry_date(today) | local **encrypted** table, app lock, `FLAG_SECURE` on screen; no mood analysis |
-| EXPLAIN | summary, key_dates, what_to_do | show text; optional TTS read-aloud; restates only |
-| UNSUPPORTED | reason | show "Motus can't do this yet" + reason; do nothing |
+| Intent | Fields (required*) | What confirming does |
+| --- | --- | --- |
+| EVENT | title*, date_text*, time_text, location, notes | Calendar insert intent, prefilled; the person saves it in their calendar app. Marks the day in Actum's calendar tab. |
+| ALARM | time_text*, label, date_text | Clock app's set-alarm intent. For any day but its next natural ring, a calendar event instead. Marks the day. |
+| EXPENSE | amount*, counterparty_or_merchant, category, date_text, direction (spent / owed_to_me / i_owe) | A row in Actum's ledger. |
+| CONTACT | name*, phone* (validated), note | Contacts insert intent, prefilled. |
+| TODO | items* (list), list_name | Rows in Actum's to-do list. |
+| DIARY | text* (verbatim) | Sealed with the diary's key and stored. Its words never go in the log. |
+| EXPLAIN | summary, key_dates, what_to_do | Shown only. Nothing runs. |
+| UNSUPPORTED | reason | "Actum can't do this yet." Nothing runs. |
 
-The model copies dates / times **as written**; Kotlin resolves them. The model never
-executes anything.
+Dates and times are copied as written (`date_text`, `time_text`) and resolved by Kotlin:
+relative days (today, tomorrow, kal, parshu), weekdays, written dates, clock times, and
+stretches from now ("in 8 minutes").
 
----
+## How a request flows
 
-## 5. Pipeline (build in this order inside the app)
+1. Words arrive: typed, spoken (on-device recognizer, editable transcript), or taken from
+   a saved item's text.
+2. Typed and spoken words are offered to the rules first. A saved item skips them.
+3. Otherwise Gemma reads them. Its reply is repaired if malformed, retried once, checked
+   for being about the message, and refused if it still is not an answer.
+4. The validator checks every field against the person's words and resolves dates and
+   times: verified, unsure (with one question, and choices where there are some), or
+   missing.
+5. One card per action. Fields can be edited; an edit is validated again.
+6. The person confirms. The executor runs it and writes a small JSON record to the log.
 
-1. Input arrives via share sheet (text / image / audio) or Quick Settings tile (typed / dictated).
-2. Normalize: trim, note the script, keep the original.
-3. Images → ML Kit OCR → text. (Do not send raw images to the model by default — slow.)
-4. **Deterministic pre-parsers** pull candidates: dates + relative dates (kal, parshu,
-   aaj, "next Friday", Bengali equivalents), clock times, amounts (₹ / Rs / rupees),
-   phone numbers, URLs. Resolve relative dates against the **device date + timezone
-   passed into the code**, never the model.
-5. Model returns the JSON envelope.
-6. **Validator:** schema + enum check; cross-check model fields against the pre-parser
-   candidates; reject unknown intents; cap at 5 actions; JSON-repair then one retry, then
-   fall back to UNSUPPORTED / amber card.
-7. **Preview cards:** one per action; each field shows green (verified) / amber (unsure) /
-   red (missing).
-8. User taps Confirm per card.
-9. Handler executes (intent or DB).
-10. Save a small JSON record to the local log (fields only, not raw images).
+## UI
 
-**Result states:** pass (all required valid, cross-checks agree) → confirm; uncertain
-(ambiguity) → highlight field, ask one question; fail / unsupported → say so, do nothing.
+Calm, minimal, large tap targets (48 dp), visible progress while the model works, and
+never a success that did not happen. Two looks, dark ink and beige paper, switched on the
+home screen. Each action has one colour and one icon, used wherever it appears. Amber is
+the app's own colour and the colour of a question.
 
----
+Do not build: a chat screen, a mood dashboard, or onboarding longer than two screens.
 
-## 6. UI — make it clean and calm (name everything "Motus")
+## Testing
 
-Principles: one capture screen, one preview screen, large tap targets, readable in
-Bengali and English, visible progress while the model runs, never fake success.
+Unit-test what is pure and what would hurt if wrong: parsers, the validator, the rules
+(both what they must read and what they must leave alone), envelope repair, grounding,
+and the diary lock. Verify everything else on a real phone. When a slip is found on the
+phone, add its sentence to the tests before fixing it. Do not chase coverage.
 
-Screens to build:
-- **Capture receiver** (opens from share sheet): shows what was received, auto-starts
-  processing with a clear progress state.
-- **Preview cards:** one card per action, editable fields, state chips (green/amber/red),
-  Confirm / Skip.
-- **Refusal screen:** "Motus can't do this yet" + one reason.
-- **Home:** tabs — To-do, Expenses, Diary, **Log** (the JSON gallery, keyword search).
-- **Privacy screen:** reads the app's own requested permissions at runtime and shows that
-  `INTERNET` is not among them. This is the "proof" screen for the demo.
-- **Settings:** language, app lock, (optional) smart-mode download status.
+After any change to the model prompt, the answer format or the repair step, re-run both
+benchmarks (see `benchmarks/README.md`) and record them. Speed and accuracy move together
+in surprising ways; never report one without the other.
 
-Do NOT build: a chat screen, a search-everything screen, a mood dashboard, or an
-onboarding longer than two screens.
+## When you're blocked
 
-Use Breadcrumb's existing theme as the base; refine spacing, states and the empty / error
-states rather than restyling from scratch. If a dedicated design pass is warranted, prefer
-a calm, high-contrast, single-accent palette; avoid templated defaults.
-
----
-
-## 7. Work broken into small, testable tasks
-
-Each task has a **manual check** = the one thing that proves it works. Mark a task done
-only when its check passes **on the real phone** (or on the parser's unit test where
-noted). Do them in order. Stop and tell the user the result at each gate.
-
-**M0 — Repo inventory (no new code).**
-- Read Breadcrumb per section 2a; write the reuse / adapt / ignore inventory with file paths.
-- Check: a short inventory doc exists and names the exact files for share sheet, OCR,
-  Room and theme.
-
-**M1 — Model returns JSON on the phone (the make-or-break gate).**
-- Load Gemma E2B via LiteRT-LM; strip the DB down to nothing for now; send one hard-coded
-  sentence; get the envelope back; add JSON-repair + one retry.
-- **Measure and report median + worst latency to a complete JSON answer.**
-- Check: the sentence `"kal 10 tay exam, rice kinte hobe, Rahul ke 500 dilam"` returns 3
-  valid actions. Report the time. If it's worse than ~15–20s, stop and we cut scope.
-
-**M2 — Parsers + validator (the only unit-tested part).**
-- Kotlin parsers: relative-date (en / hi / bn), time, amount, phone. Validator with
-  pass / uncertain / fail and the model-vs-parser cross-check.
-- Check: a tiny unit test over ~20 strings passes, including 3 ambiguous dates that must
-  come back `uncertain`.
-
-**M3 — Share-sheet → preview cards (reuse Breadcrumb capture).**
-- Wire the reused share receiver + OCR to the pipeline; render preview cards with state
-  chips and Confirm.
-- Check: sharing a text message and a notice **screenshot** each produce correct cards
-  with correct field states.
-
-**M4 — Real actions for the 3 demo intents.**
-- EVENT (calendar insert intent), EXPENSE (Room ledger), TODO (Room list). UNSUPPORTED
-  screen for anything else.
-- Check: confirming each card actually creates the calendar event / ledger row / to-do;
-  "book me a cab" shows the refusal and does nothing.
-
-**M5 — Polish + privacy proof + log (demo-ready).**
-- Privacy screen (runtime permission read), progress / error states, local JSON log with
-  keyword search, Motus branding throughout.
-- Check: the full demo runs **twice in a row in airplane mode** without a break. Record a
-  backup screen capture.
-
-**M6 — Stretch, only if M5 is fully done.**
-- CONTACT, ALARM, then the multi-action voice dump, then DIARY / EXPLAIN, then a
-  smaller / faster Gemma router. Each with its own manual check. Cut from the bottom if
-  time runs out.
-
-**Scope-cut order if behind:** voice → smart mode → diary / explain → alarm → contact →
-multi-action split → log search. Protect M1–M5.
-
----
-
-## 8. Definition of done for the hackathon
-
-- M1–M5 complete; demo runs twice in airplane mode.
-- `INTERNET` permission absent; privacy screen proves it.
-- 3 actions (EVENT, EXPENSE, TODO) + honest UNSUPPORTED all work from a real shared input.
-- A measured accuracy number exists from a ~30-sentence test set (don't fabricate it).
-- README states real limits honestly (calendar app may sync; model sideloaded; Bengali
-  OCR / TTS status; latency measured on the demo phone).
-
----
-
-## 9. When you're blocked
-
-If any task is stuck for more than ~20 minutes, **cut scope** rather than adding
-complexity, and tell the user what you cut and why. Prefer one fully working vertical
-slice over several half-working features. Never paper over a failure with a fake success
-state or an unimplemented claim.
+If something is stuck for more than about 20 minutes, cut scope, and tell the owner what
+you cut and why. Prefer one thing fully working over several half-working. Never cover a
+failure with a fake success or an unimplemented claim.

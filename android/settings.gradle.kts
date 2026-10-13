@@ -22,5 +22,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "breadcrumb"
+rootProject.name = "actum"
 include(":app")

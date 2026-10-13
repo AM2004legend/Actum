@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="brand_ink">#FF171310</color>
+    <!-- The beige of the launcher icon, behind the letter on the launch screen. -->
+    <color name="brand_paper">#FFF8EEDF</color>
     <color name="brand_amber">#FFF5A623</color>
 </resources>
