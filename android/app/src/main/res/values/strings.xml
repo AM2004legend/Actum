@@ -1,0 +1,126 @@
+<resources>
+    <string name="app_name">Breadcrumb</string>
+
+    <!-- The Quick Settings tile's label, set by the capture workstream. -->
+    <string name="tile_label">Breadcrumb</string>
+    <!-- The tile's second line: what a tap does, since it is an action, not a toggle. -->
+    <string name="tile_subtitle">Save clipboard</string>
+
+    <!-- Reading workstream R8: bringing in what's already on the phone (design §14, §16) -->
+    <string name="import_title">Bring in</string>
+    <string name="import_back">back</string>
+    <string name="import_choice_folder">A whole folder</string>
+    <string name="import_choice_folder_detail">every picture and PDF in it — screenshots, usually</string>
+    <string name="import_choice_photos">Only these pictures</string>
+    <string name="import_choice_photos_detail">pick them yourself</string>
+    <string name="import_choice_files">PDFs, or a bookmarks export</string>
+    <string name="import_choice_files_detail">from the file picker</string>
+
+    <!-- The debug list. Lowercase mono chrome, as the search screens will be. -->
+    <string name="debug_title">breadcrumb · debug</string>
+    <string name="debug_empty">Nothing saved yet. Tap + for a sample, or share something to Breadcrumb.</string>
+    <string name="debug_add_sample">Add a sample memory</string>
+    <string name="debug_clear">Clear</string>
+    <string name="debug_delete">Delete</string>
+
+    <!-- Sync workstream: the debug list's server line, which says what to fix for each way
+         the phone cannot reach the server. A tap checks again. -->
+    <string name="server_checking">server · checking…</string>
+    <string name="server_reachable">server · reachable</string>
+    <string name="server_refused">server · connection refused: run adb reverse tcp:3000 tcp:3000</string>
+    <string name="server_closed">server · connection closed without a reply: the forward is set, but the server is not running</string>
+    <string name="server_other">server · another server on the port (%1$s)</string>
+    <string name="server_timed_out">server · no answer in time</string>
+    <string name="server_unreachable">server · unreachable: %1$s</string>
+    <!-- The upload queue's buttons: a run at once, out of any backoff; refused memories queued again. -->
+    <string name="debug_upload">upload:</string>
+    <string name="debug_sync_now">sync now</string>
+    <string name="debug_retry_refused">retry refused</string>
+
+    <!-- Sync workstream: the home screen (design section 16). -->
+    <string name="home_wordmark">breadcrumb</string>
+    <string name="home_nothing_title">Nothing kept yet</string>
+    <string name="home_nothing_start">Start here: the + brings in the screenshots and PDFs already on your phone.</string>
+    <string name="home_nothing_or">or share anything to breadcrumb from any app,\nor copy it and tap the breadcrumb tile</string>
+    <string name="search_hint">search your memory</string>
+    <string name="search_clear">Clear search</string>
+    <string name="search_none_title">Nothing matches that</string>
+    <string name="search_none_hint">try fewer words, or describe it\nthe way you\'d say it out loud</string>
+    <string name="search_words_title">No saved words match</string>
+    <string name="search_words_hint">ranked search is out of reach, so this\nlooked for the words themselves</string>
+
+    <!-- Reading R7: opening and sharing saved originals (design §11, §12, §16) -->
+    <string name="detail_action_open_original">Open original</string>
+    <string name="detail_action_open_link">Open link</string>
+    <string name="detail_action_copy_text">Copy text</string>
+    <string name="detail_action_missing">Original isn\'t on this phone</string>
+    <string name="detail_action_share">Share</string>
+    <string name="copied">Copied</string>
+    <string name="no_app_can_open">No app here can open this</string>
+
+    <!-- Sync workstream: the detail of a memory and the undo bar (design sections 11, 12, 16). -->
+    <string name="detail_saved">saved</string>
+    <string name="detail_from">from</string>
+    <string name="detail_taken">taken</string>
+    <string name="detail_status">status</string>
+    <string name="detail_text_found">text found</string>
+    <string name="detail_from_the_page">from the page</string>
+    <string name="detail_what_it_shows">what it shows</string>
+    <string name="detail_your_note">your note</string>
+    <string name="detail_edit">edit</string>
+    <string name="detail_delete">Delete</string>
+    <string name="undo_deleted">deleted</string>
+
+    <!-- Capture workstream: the capture sheet. "Saved" and "Saving…" are in the
+         serif, the app's own voice; the rest is chrome. -->
+    <string name="capture_saving">Saving…</string>
+    <string name="capture_saved">Saved</string>
+    <string name="capture_saved_many">Saved %1$d</string>
+    <string name="capture_saved_some">Saved %1$d of %2$d</string>
+    <string name="capture_removed">Removed</string>
+    <string name="capture_undo">Undo</string>
+    <string name="capture_done">Done</string>
+    <string name="capture_close">Close</string>
+    <string name="capture_add_note">add a note</string>
+    <string name="capture_note_hint">who sent it, what it\'s for…</string>
+    <string name="capture_picture">Saved picture</string>
+    <string name="capture_document">Document</string>
+    <string name="capture_pdf">PDF</string>
+    <string name="capture_nothing_to_save">Nothing to save</string>
+
+    <!-- Capture workstream: why the sheet saved nothing, each its own message,
+         shown with a Close button rather than a silent close. -->
+    <string name="capture_failed">Couldn\'t save that</string>
+    <string name="capture_clipboard_empty">Clipboard is empty</string>
+    <string name="capture_clipboard_sensitive">Not saved: clipboard is marked sensitive</string>
+    <string name="capture_clipboard_unreadable">Couldn\'t read the clipboard</string>
+
+    <!-- Capture workstream: launcher shortcut (design §13, §16) -->
+    <string name="shortcut_keep_short">Keep</string>
+    <string name="shortcut_keep_long">Keep something</string>
+
+    <!-- Capture workstream C9: the "+" composer and button (design §8, §13, §16) -->
+    <string name="keep_title">Keep something</string>
+    <string name="keep_button_description">Keep something</string>
+    <string name="keep_button_description_draft">Keep something — a draft is waiting</string>
+    <string name="keep_hint_empty">a thought, a link, anything…</string>
+    <string name="keep_hint_files">a note about it — who sent it, what it\'s for…</string>
+    <string name="keep_chip_photo">photo</string>
+    <string name="keep_chip_pdf">pdf</string>
+    <string name="keep_action">Keep</string>
+    <string name="keep_remove">Remove</string>
+    <string name="keep_failed">couldn\'t keep that — try again?</string>
+    <string name="keep_bring_in">bring in what\'s already on the phone</string>
+
+    <!-- Local first: the privacy sheet, what leaves the phone -->
+    <string name="home_privacy">privacy</string>
+    <string name="privacy_title">What leaves the phone</string>
+    <string name="privacy_lead">Search runs on this phone, and the originals never leave it.</string>
+    <string name="privacy_parses">Understand searches in the cloud</string>
+    <string name="privacy_parses_on">what you type goes, and the names of the apps and sites your saves came from, so “from april” or “on whatsapp” become filters</string>
+    <string name="privacy_parses_off">nothing you type leaves; search still works, without those filters</string>
+    <string name="privacy_reads">Gemini reads my memories</string>
+    <string name="privacy_reads_on">for one-line summaries; phone numbers, emails, IDs and OTPs are stripped first, and pictures and banking apps never go</string>
+    <string name="privacy_reads_off">nothing you save leaves the phone</string>
+    <string name="privacy_reads_forgetting">forgetting… the server drops everything it holds as soon as it can be reached</string>
+</resources>
