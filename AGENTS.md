@@ -16,8 +16,166 @@ It describes the project as of 13 October 2026.
 6. **Run both benchmarks and record them** in `benchmarks/<your-phone>.md`, following
    `benchmarks/README.md`. This is required, not optional: the owner compares phones, and
    one phone's numbers say nothing about another's. Commit that file.
-7. **Tell your human** what worked, what did not, and anything untested. Do not report a
+7. **If you are working for Dhrubaparna**, your brief is the next section.
+8. **Tell your human** what worked, what did not, and anything untested. Do not report a
    step as done unless you saw it work.
+
+## Workstream: a small model of our own (Dhrubaparna)
+
+**Agent working for Dhrubaparna: this section is your brief.** Aritra (the owner) set it
+on 14 October 2026. Read `CLAUDE.md` and the rest of this file first; the rules there
+apply to everything here.
+
+### Why
+
+Gemma 4 E2B answers in 6–12 s on the reference phone and warms it up. Gemma 3 270M is
+about a tenth of its size and should be several times faster and cooler, but used as it
+comes it is not expected to handle Actum's job well (several actions in one sentence,
+Hinglish and Benglish, exact JSON every time). The plan is to **fine-tune Gemma 3 270M to
+do only Actum's job**, on Dhrubaparna's MacBook (M3), and test it on her Android phone,
+and keep improving it there.
+
+Aritra's machine is meanwhile making Actum able to run a model other than Gemma 4 (see
+"Running a different model in the app" below). Until that lands on `main`, test models on
+the Mac with the `litert-lm` command-line tool.
+
+### How to work
+
+- Work on a branch, `dhrubaparna/small-model`, and push it often. Do not push to `main`;
+  Aritra merges.
+- Do the parts **in order**, one at a time. Finish a part's check, record the result,
+  commit, then start the next. If a part's check fails, stop and tell Dhrubaparna what
+  failed and what you suggest; do not move on as if it passed.
+- Never commit model weights or checkpoints (`.gitignore` already blocks `*.litertlm`,
+  `*.task`, `*.safetensors`, `*.gguf`, `*.bin` and `training/out/`). Commit data, scripts,
+  configs and results.
+- Report every number with how it was measured. If something was not measured, say so.
+- **Keep the 30 benchmark sentences out of training.** They are in
+  `android/app/src/main/java/com/actum/ui/gate/TestSet.kt`. A model trained on them
+  scores well on them and tells us nothing. Do not paraphrase them into the training set
+  either.
+
+### Part 1 — Actum on her phone, and the rules checked by hand
+
+1. Follow "If you have just pulled this" above: build, install, push the two Gemma 4
+   models, check the APK has no `INTERNET` permission.
+2. Run both benchmarks (`benchmarks/README.md`) and write
+   `benchmarks/<maker>-<model>.md` for her phone.
+3. **Test the rules on the phone**, typed and spoken. For each line below, type it, tap
+   **Do this**, and note whether the card said "a direct command, read without the model"
+   and whether the card was right. Then say each of the first six into the microphone and
+   note the same. Record all of it in her benchmark file under "Rules, by hand".
+   - set an alarm for 6:30 am
+   - wake me up tomorrow at 7 am
+   - remind me in 15 minutes to call mom
+   - buy eggs, bread and butter
+   - paid Rahul 500 for lunch
+   - save Priya's number 98300 12345
+   - diary: a quiet day, finished the chapter
+   - set an alarm for 7 (must go to Gemma: no am or pm)
+   - buy milk and call mom (must go to Gemma: two things)
+   - I forgot to buy milk (must go to Gemma: not a command)
+4. Any wrong card from a rule is a bug: add the sentence to `RulesTest.kt` as a failing
+   test, and tell Dhrubaparna. Do not loosen a rule to make one sentence pass without
+   adding sentences it must still leave alone.
+
+Check: her benchmark file exists with both benchmarks and the rules table filled in.
+
+### Part 2 — the Mac, and the untrained 270M as a baseline
+
+1. Record the Mac's chip, memory and macOS version in `training/MACHINE.md`.
+2. Python 3.11 or 3.12 in a virtual environment under `training/.venv` (git-ignored).
+3. Accept the Gemma licence on Hugging Face for `litert-community/gemma-3-270m-it` and
+   `google/gemma-3-270m-it` (both are gated), and log in with `huggingface-cli login`.
+4. `pip install litert-lm`, download `gemma3-270m-it-q8.litertlm` (304 MB) from
+   `litert-community/gemma-3-270m-it`, and check it runs on the Mac.
+5. Write `training/eval.py`: runs a `.litertlm` model over a JSONL file of
+   `{"text": …, "want": [intents]}` lines, using the same instruction text as
+   `GemmaRouter.kt`, and prints per-sentence results, accuracy (exactly the wanted
+   intents) and time per sentence. Make `training/data/benchmark.jsonl` from the 30
+   `TestSet.kt` sentences for **evaluation only**.
+6. Run it on the untrained 270M. Record the score in `training/RUNS.md`.
+
+Check: `training/RUNS.md` has the untrained model's score and timings, measured on the
+Mac. (A low score is expected and fine. It is the baseline.)
+
+### Part 3 — training data
+
+1. Write `training/data/train.jsonl` and `training/data/valid.jsonl`. Each line is one
+   example: `{"text": "<what the person typed or said>", "json": <the exact envelope
+   Actum expects>}`. The envelope format is in `CLAUDE.md` under "The actions":
+   `intent`, `fields`, `source_span`; no `confidence`. Dates and times are copied as
+   written, never resolved.
+2. Aim for at least 600 training and 100 validation examples to start. Cover every
+   intent, one to three actions per sentence, `UNSUPPORTED` for requests Actum cannot do
+   (booking, ordering, messaging, questions), and plain chat that should produce
+   `UNSUPPORTED`. About a quarter Hinglish and Benglish in Roman letters.
+3. Generating examples with a large model is fine, but every example must be checked:
+   write `training/check_data.py`, which rejects any line whose JSON is not valid, whose
+   intent is not in the closed list, whose `source_span` is not in `text`, or whose
+   `text` is one of the benchmark sentences or close to one.
+4. Commit the data and the checker.
+
+Check: `check_data.py` passes on both files, and its summary (examples per intent and per
+language) is in `training/RUNS.md`.
+
+### Part 4 — fine-tune on the Mac
+
+1. Fine-tune `google/gemma-3-270m-it` on `train.jsonl`. Either LoRA or a full fine-tune;
+   at 270M parameters both fit an M3 with 16 GB, and LoRA fits 8 GB. Use PyTorch with
+   the `mps` device, or MLX (`mlx-lm`). Check the current docs for whichever you choose
+   rather than relying on memory.
+2. Train the model to answer with the envelope directly. Use a **short** instruction
+   (one line) instead of `GemmaRouter`'s long one: a fine-tuned model does not need the
+   rules spelled out, and every token of instruction is time on the phone. Record the
+   exact instruction you trained with; the app will need it.
+3. Keep `valid.jsonl` out of training, and stop when its loss stops improving.
+4. Merge the LoRA weights if you used LoRA, and save under `training/out/` (git-ignored).
+5. Evaluate the trained model on the Mac with `eval.py`, on `valid.jsonl` and on
+   `benchmark.jsonl`. Record both in `training/RUNS.md`, with the training settings,
+   time taken and peak memory.
+
+Check: a trained model whose `benchmark.jsonl` score is recorded next to the baseline.
+
+### Part 5 — convert for the phone
+
+1. Convert the trained model to `.litertlm`, quantized to 8 bits like the published one.
+   The tool is `litert-torch` (formerly `ai-edge-torch`); check its current docs for
+   Gemma 3 and the `.litertlm` output. Its Python packages publish macOS ARM builds, but
+   whether the whole conversion runs on macOS has not been checked: try it. If it fails
+   on the Mac, do only this step in a free Google Colab notebook and download the file.
+2. Run `eval.py` on the converted file. Its score should be close to the unconverted
+   model's; if it is far off, the conversion is wrong.
+3. Record the file's size and SHA-256 in `training/RUNS.md`.
+
+Check: a converted `.litertlm` that scores within a sentence or two of the unconverted
+model on the Mac.
+
+### Part 6 — on the phone
+
+Needs the app change described below to be on `main`. Pull it, then push the converted
+model to the phone, choose it in the app, and run both benchmarks. Record them in her
+phone's benchmark file under the model's name, next to Gemma 4's.
+
+### Then: keep improving
+
+Each round: look at what the phone got wrong, add training examples for those kinds of
+sentences (never the benchmark sentences themselves), train, convert, measure, record.
+One row per round in `training/RUNS.md`. Stop and tell Dhrubaparna and Aritra when the
+small model reaches 27 of 30 on the benchmark, or after three rounds without improvement.
+
+### Does this need cloud training?
+
+Not for 270M. Training 270M parameters fits an M3 comfortably, and Google's own guide
+fine-tunes it in minutes on a free Colab GPU, which is slower hardware than people
+assume an M3 is beaten by. Cloud is worth it only if: the conversion step will not run
+on macOS (use Colab for that step alone), the Mac has 8 GB and a full fine-tune is
+wanted, or the plan later moves up to the 1B model.
+
+### Running a different model in the app
+
+Being built on Aritra's machine, not yet on `main`. When it lands, this section will say
+how to put a model file on the phone and choose it. Until then, Part 6 waits.
 
 ## What you need
 

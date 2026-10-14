@@ -23,3 +23,12 @@ models/
 # JVM crash reports (a Gradle daemon that ran out of memory writes these where it was started)
 hs_err_pid*.log
 replay_pid*.log
+
+# model weights and training output: never committed
+*.litertlm
+*.task
+*.safetensors
+*.gguf
+*.bin
+training/out/
+training/.venv/
