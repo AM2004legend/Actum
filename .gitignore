@@ -19,3 +19,7 @@ Thumbs.db
 
 # the sideloaded Gemma model (2.6 GB), never committed
 models/
+
+# JVM crash reports (a Gradle daemon that ran out of memory writes these where it was started)
+hs_err_pid*.log
+replay_pid*.log
