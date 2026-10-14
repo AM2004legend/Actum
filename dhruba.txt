@@ -1,0 +1,59 @@
+Hi Dhrubaparna! Here's what we need from you for Actum (our offline Android app). It's two jobs: get Actum running and tested on your phone, then train a small AI model for it on your Mac. Your coding agent does most of the work; you just need to set things up and keep an eye on it.
+
+*What you need first*
+• Your Android phone: Android 10 or newer, about 3.5 GB free, and a USB cable to your Mac.
+• USB debugging on: Settings → About phone → tap "Build number" 7 times → Developer options → turn on "USB debugging". Plug in and tap "Allow" on the phone.
+• Your Mac (M3) with Android Studio installed (it brings the Android SDK and adb), and about 5 GB free.
+• A Hugging Face account. Open these two pages and click "Agree" on the Gemma licence (you must be logged in):
+  https://huggingface.co/litert-community/gemma-3-270m-it
+  https://huggingface.co/google/gemma-3-270m-it
+
+*Good to know*
+• Having Breadcrumb on your phone is fine. Actum is a completely separate app; neither touches the other. Don't uninstall anything.
+• Actum never uses the internet. It downloads nothing itself; your agent copies the AI model files onto the phone over the cable (about 3 GB, takes a few minutes).
+• The first time you tap the mic, allow microphone access. Voice needs an English speech pack: Settings → System → Languages → on-device speech recognition. If the app says it can't listen, that's why.
+• If you try the diary, the password you set can't be recovered. Use one you'll remember.
+• Your phone gets warm while Actum's AI is reading. That's expected. Please note it if it gets hot.
+
+*Steps*
+1. Clone the repo: https://github.com/AM2004legend/Actum
+2. Open the folder with your coding agent (Claude Code or similar), with your phone plugged in.
+3. Paste the prompt below to the agent.
+4. When it asks you to try things on the phone, do it and tell it what you saw.
+5. Send me what it reports at the end of each part.
+
+----- PROMPT FOR YOUR AGENT (copy from here) -----
+
+You are working for Dhrubaparna on Actum, an offline Android app. The repo is in this folder. Before doing anything, read CLAUDE.md and AGENTS.md completely. Their rules apply to everything you do. Your brief is the AGENTS.md section "Workstream: a small model of our own (Dhrubaparna)". Follow it part by part, in order.
+
+How to work:
+- Work on a branch called dhrubaparna/small-model. Push to that branch often. Never push to main; Aritra merges.
+- Finish one part, run its check, record the result, commit, then tell me before starting the next part.
+- If a check fails, stop. Tell me what failed and what you suggest. Do not move on as if it passed.
+- Never commit model files or training output (.litertlm, .task, .safetensors, .gguf, .bin, training/out/). The .gitignore already blocks them; check git status before every commit.
+- Never put the 30 benchmark sentences (android/app/src/main/java/com/actum/ui/gate/TestSet.kt), or close paraphrases of them, into training data.
+- Report every number with how it was measured. If you did not measure something, say so. Do not report a step as done unless you saw it work.
+- The phone is mine and I may be using it. Before any adb "input tap", check which app is in front. Only tap when Actum (com.actum.app) is in front.
+- Ask me before uninstalling anything from the phone, clearing app data, or deleting files outside this repo.
+
+Start with Part 1, everything on my phone:
+1. Check the phone is connected (adb devices) and record its maker, model, chip, RAM, Android version and free storage.
+2. Build and install Actum from the android folder (./gradlew installDebug). If the build complains about the Android SDK, create android/local.properties with sdk.dir pointing at the SDK Android Studio installed (usually ~/Library/Android/sdk).
+3. Download the two Gemma 4 model files listed in README.md under "Build and install", check their SHA-256 hashes match the README exactly, open Actum once on the phone, then adb push both files to /sdcard/Android/data/com.actum.app/files/.
+4. Check the built APK does not contain the INTERNET permission (the command is in AGENTS.md under "Checks").
+5. Go through the "Manual checks on a new phone" table in AGENTS.md with me. Tell me what to type or say, and I'll tell you what I see. Write down every result, including anything that looked wrong.
+6. Run both benchmarks exactly as benchmarks/README.md says: force-stop the app first, and note whether the phone is charging and its battery temperature. Write benchmarks/<maker>-<model>.md using the template there.
+7. Test the rules by hand with the ten sentences listed in Part 1 of my brief: typed first, then the first six spoken into the mic. For each, record whether the card said "a direct command, read without the model" and whether the card was correct. Put this in the benchmark file under "Rules, by hand".
+8. If a rule produced a wrong card, add that sentence to android/app/src/test/java/com/actum/model/RulesTest.kt as a failing test and tell me. Do not loosen a rule to make one sentence pass.
+9. Commit the benchmark file (and any test you added) to the branch, push it, and give me a short summary I can send to Aritra:
+   - what worked;
+   - what didn't;
+   - the benchmark numbers;
+   - the rules table;
+   - anything you could not test.
+
+When Part 1 is done and I say go, continue with Parts 2 to 5 on the Mac: the untrained 270M model as a baseline, training data, fine-tuning on this M3, and conversion for the phone. Part 6 (the trained model on the phone) waits until AGENTS.md says the app can load other models. Do not start it before then.
+
+----- END OF PROMPT -----
+
+Thanks!! Ping me if anything's unclear 🙂
