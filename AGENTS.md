@@ -166,9 +166,9 @@ small model reaches 27 of 30 on the benchmark, or after three rounds without imp
 
 ### Does this need cloud training?
 
-Not for 270M. Training 270M parameters fits an M3 comfortably, and Google's own guide
-fine-tunes it in minutes on a free Colab GPU, which is slower hardware than people
-assume an M3 is beaten by. Cloud is worth it only if: the conversion step will not run
+Not for 270M. A 270M-parameter model fits an M3 comfortably, and Google's own guide
+fine-tunes it in minutes on a free Colab T4 GPU; on an M3 expect minutes to an hour per
+run, depending on how much data. Cloud is worth it only if: the conversion step will not run
 on macOS (use Colab for that step alone), the Mac has 8 GB and a full fine-tune is
 wanted, or the plan later moves up to the 1B model.
 
