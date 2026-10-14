@@ -20,6 +20,8 @@ import androidx.compose.ui.graphics.toArgb
 import com.actum.ui.theme.ActumTheme
 import com.actum.ui.theme.Ink
 import com.actum.ui.theme.Look
+import com.actum.model.GemmaModel
+import kotlinx.coroutines.launch
 import com.actum.model.GemmaRouter
 import com.actum.ui.gate.ModelGateScreen
 
@@ -69,8 +71,21 @@ class MainActivity : ComponentActivity() {
         measureIfAsked(intent)
     }
 
-    /** `adb shell am start -n com.actum.app/com.actum.MainActivity --es measure cpu` (or gpu, or eval for the test set). */
+    /**
+     * `adb shell am start -n com.actum.app/com.actum.MainActivity --es measure cpu` (or gpu, or eval for the test set).
+     * `--es model gemma3-1b` (or gemma4-e2b, gemma3-270m) chooses the model first, and the choice is kept.
+     */
     private fun measureIfAsked(intent: Intent?) {
+        GemmaModel.Kind.byId(intent?.getStringExtra(EXTRA_MODEL))?.let { (application as ActumApp).gemma.choose(it) }
+        // `--es lessons dump`: what the rules could learn, to `adb logcat -s ActumLessons`, for whoever writes the next rules.
+        if (intent?.getStringExtra(EXTRA_LESSONS) == "dump") {
+            val app = application as ActumApp
+            app.applicationScope.launch {
+                val lessons = app.database.lessonDao().list()
+                lessons.forEach { android.util.Log.i(LESSONS_TAG, "${it.kind}\t${it.intent}\t${it.words}") }
+                android.util.Log.i(LESSONS_TAG, "${lessons.size} lessons")
+            }
+        }
         val asked = intent?.getStringExtra(EXTRA_MEASURE) ?: return
         if (asked == "eval") {
             measuring = true
@@ -84,5 +99,8 @@ class MainActivity : ComponentActivity() {
 
     private companion object {
         const val EXTRA_MEASURE = "measure"
+        const val EXTRA_MODEL = "model"
+        const val EXTRA_LESSONS = "lessons"
+        const val LESSONS_TAG = "ActumLessons"
     }
 }

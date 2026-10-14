@@ -22,8 +22,17 @@ used.
 - A plain, direct command ("set an alarm for 7 am", "remind me in 8 minutes", "buy eggs,
   bread and butter", "paid Rahul 500", "save Ankit's number 98300 12345", "diary: …") is
   read by fixed rules, instantly. The card says so and offers **not right? ask Gemma**.
-- Everything else, and every saved picture, PDF or note (**Find things to do in this**),
-  is read by an on-device Gemma model.
+  The rules also read everyday short forms ("tmrw", "next day", "2 mins later", "plz")
+  and the commonest commands in Hinglish and Benglish written in Roman letters ("kal
+  subah 7 baje alarm laga do", "5 min baad yaad dila dena", "doodh aur ande lene hai",
+  "Rahul ke 500 dilam", "dim ar pauruti kinte hobe"). A sentence that says *don't* ("na",
+  "nahi", "mat") or has a second thing in it is never read by a rule.
+- Everything else is read by an on-device Gemma model. Each card appears as soon as Gemma
+  has written that action, while it writes the next.
+- A saved picture, PDF or note (**Find things to do in this**) is split into sentences:
+  the plain commands among them go to the rules and the rest to Gemma. Gemma reads recent
+  saved items in the background soon after they are saved, so their cards are usually
+  there the moment you ask.
 
 Either way, plain Kotlin resolves the dates, times, amounts and phone numbers and checks
 every field against your own words. Each action is shown as a card, and nothing happens
@@ -51,6 +60,11 @@ said, with no model in between.
 that marks the days of events and reminders you confirmed, expenses, the diary, and a log
 of every confirmed action.
 
+**Learning from misses.** When Gemma had to read something a rule could have read
+instantly, or you corrected a rule's card, Actum keeps the sentence, on the phone only,
+at the bottom of the Log tab, where **forget these** clears it. Actum does not change
+itself: these are for whoever writes its next rules. Diary words are never kept there.
+
 **Light and dark.** The sun or moon on the home screen switches between the two looks.
 
 ## Privacy
@@ -76,30 +90,37 @@ through LiteRT-LM 0.18.0, 13 October 2026. Phone on charge, battery at 39–42 �
 
 | | Median | Worst | Correct |
 | --- | --- | --- | --- |
-| One sentence with three actions, 5 runs | 12.0 s | 13.3 s | 5 of 5 |
-| 30-sentence English test set, per sentence | 6.0 s | 13.4 s | 29 of 30 |
+| One sentence with three actions, 5 runs | 8.5 s | 10.4 s | 5 of 5 |
+| 30-sentence English test set, per sentence | 4.1 s | 10.6 s | 30 of 30 |
 
+Measured 14 October 2026, phone on USB power, battery 39 °C. The day before, with Gemma
+also writing out the words each action came from, the same runs took 12.0 s and 6.0 s.
+
+- Those times are for the whole answer. Cards now appear one by one: in one try of the
+  three-action sentence they came 0 s, 2.5 s and 7.8 s after the tap.
 - Direct-command rules read 9 of those 30 sentences, all correctly, without the model.
 - Gemma is loaded, and its instructions read in (about 4 s), when Actum opens, so neither
-  is part of the figures above. Sharing into Actum does not load it.
+  is part of the figures above. Sharing into Actum loads it a little later, in the
+  background, to read what was shared.
 - **Requests are read ahead.** When typing pauses for about a second, or as soon as speech
   has become words, Actum starts reading the request before **Do this** is tapped. Tapped
   a few seconds later, the cards are already there: in two tries on the reference phone
   the wait after the tap was under 0.1 s, against about 8 s of reading. Tapped at once,
   the wait was 7 s. Direct commands and one- or two-word searches are not read ahead.
-- The one miss ("what is the capital of Australia") returns nothing, which Actum shows as
-  a refusal.
-- The test set was used to find and fix faults and then run again, so 29 of 30 is not a
+- The test set was used to find and fix faults and then run again, so 30 of 30 is not a
   held-out number.
+- Smaller models were tried untrained: Gemma 3 1B got 14 of 30 at 7.0 s, Gemma 3 270M 5
+  of 30. Gemma 4 stays the default; a 270M trained for Actum's job is being made.
 - The GPU was slower on this phone: 40 s to load and about 50 s per answer.
 
 The full history, and results from other phones, are in [benchmarks/](benchmarks/).
 
 ## Limits
 
-- **English only.** Typed Hinglish and Benglish in Roman letters worked on the one
-  sentence tried, and the date and time parsers read some Hindi and Bengali words, but
-  no test set exists for either, so there is no accuracy figure.
+- **English first.** The rules read the Hinglish and Benglish commands listed in the
+  tests, and the date and time parsers read the common words, but Gemma's reading of
+  either has no test set, so there is no accuracy figure. Hindi and Bengali script are
+  not read.
 - **Voice needs an English speech pack installed in Android.** Android installs packs
   itself; Actum cannot download one. One take ends at the first long pause; "say more"
   adds another.
@@ -114,7 +135,11 @@ The full history, and results from other phones, are in [benchmarks/](benchmarks
 - **The calendar tab shows only what was confirmed in Actum.** It does not read the
   phone's calendar, and removing a mark there removes neither the event nor the alarm.
 - **Rules read only what they are sure of.** A sentence with a second clause, a negation
-  or anything unexpected goes to Gemma and takes seconds, not milliseconds.
+  or anything unexpected goes to Gemma and takes seconds, not milliseconds. Vague times
+  ("in a bit", "later", "eod") are never guessed.
+- **Reading saved items in the background uses the CPU** for a while after saving or
+  opening the app: items from the last 7 days, up to 10 at a time, and not on low
+  battery. Older items are read when asked about.
 - **The log search is a substring match.** No read-aloud. No settings screen.
 
 ## What you need

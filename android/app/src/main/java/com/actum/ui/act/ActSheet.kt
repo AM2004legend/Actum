@@ -133,7 +133,11 @@ fun ColumnScope.ActSheet(state: Actor.State, actor: Actor, onClose: () -> Unit) 
                     )
                     }
                 }
-                if (state.byRule) {
+                if (state.reading) {
+                    // The model is still writing: the cards above can be confirmed already.
+                    LinearProgressIndicator(Modifier.fillMaxWidth(), color = AmberBright, trackColor = InkElevated)
+                    Text("Still reading. More may come.", style = monoStyle(11.sp, InkOutline))
+                } else if (state.byRule) {
                     // A rule read this, not the model. If it read it wrong, the model gets the same words.
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("a direct command, read without the model", style = monoStyle(11.sp, InkOutline), modifier = Modifier.weight(1f))
@@ -142,7 +146,16 @@ fun ColumnScope.ActSheet(state: Actor.State, actor: Actor, onClose: () -> Unit) 
                         }
                     }
                 } else {
-                    Text("read on this phone in %.0f s".format(state.seconds), style = monoStyle(11.sp, InkOutline))
+                    val how = buildString {
+                        append(if (state.prepared) "read on this phone when it was saved" else "read on this phone in %.0f s".format(state.seconds))
+                        if (state.ruled > 0) append(" · ${state.ruled} plain ${if (state.ruled == 1) "command" else "commands"} read without the model")
+                    }
+                    Text(how, style = monoStyle(11.sp, InkOutline))
+                    if (state.ruled > 0) {
+                        TextButton(onClick = { actor.ask(state.input, rules = false) }, modifier = Modifier.heightIn(min = 48.dp)) {
+                            Text("not right? ask Gemma about all of it", style = monoStyle(11.sp, AmberBright))
+                        }
+                    }
                 }
             }
         }

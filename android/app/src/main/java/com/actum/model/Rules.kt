@@ -28,19 +28,23 @@ object Rules {
         if (said.split(Regex("\\s+")).size > MAX_WORDS) return null
         // A list is the one place "and" and commas belong.
         shopping(said)?.let { return it }
+        Desi.shopping(said)?.let { return it }
         if (CLAUSES.containsMatchIn(said)) return null
-        return alarm(said) ?: expense(said) ?: contact(said) ?: todo(said)
+        return alarm(said) ?: expense(said) ?: contact(said) ?: todo(said) ?: Desi.route(said)
     }
 
     // ── Tidying ────────────────────────────────────────────────────────────
 
-    private val OPENERS = Regex("^(?:(?:hey|hi|ok|okay|please|actum|kindly|um+|uh+|so|alright|right|now|yeah)[,\\s]+)+", RegexOption.IGNORE_CASE)
+    private val OPENERS = Regex(
+        "^(?:(?:hey|hi|hello|yo|ok+|okay+|please|actum|kindly|um+|uh+|so|alright|right|now|yeah|bro|bruh|dude|yaar|bhai|lowkey|ngl|achha|acha|accha|arey|arre|shuno|suno|ei)[,\\s]+)+",
+        RegexOption.IGNORE_CASE,
+    )
     private val ASKING = Regex("^(?:can|could|will|would)\\s+you\\s+(?:please\\s+)?", RegexOption.IGNORE_CASE)
-    private val CLOSERS = Regex("(?:[,\\s]+(?:please|thanks|thank you))+$", RegexOption.IGNORE_CASE)
+    private val CLOSERS = Regex("(?:[,\\s]+(?:please|thanks|thank you|fr|bro|yaar|bhai|asap|plz))+$", RegexOption.IGNORE_CASE)
 
-    /** Greetings, "please" and the full stop go; the words between are left exactly as said. */
+    /** Slang made plain, greetings, "please" and the full stop gone; the words between are left as said. */
     private fun tidy(input: String): String {
-        var said = input.trim().trimEnd('.', '!').trim()
+        var said = Lingo.plain(input.trim()).trimEnd('.', '!').trim()
         said = OPENERS.replace(said, "")
         // "can you set an alarm for 7 am?" is a command; any other question is not one a rule answers.
         if (ASKING.containsMatchIn(said)) said = ASKING.replace(said, "").trimEnd('?').trim()
@@ -51,13 +55,16 @@ object Rules {
     private val CLAUSES = Regex(
         // A comma between digits is a number's own ("1,200"), not a break in the sentence.
         // A full stop and a space is a new sentence, unless it is the end of "a.m." or "p.m.".
-        "(?<!\\d),|,(?!\\d)|[;?]|(?<![ap]\\.m)\\.\\s|\\b(?:and|but|then|also|or|if|unless|because|not|never|no|don't|dont|didn't|didnt|won't|wont|can't|cant|isn't|wasn't|forgot|should|maybe)\\b",
+        "(?<!\\d),|,(?!\\d)|[;?]|(?<![ap]\\.m)\\.\\s|\\b(?:and|but|then|also|or|if|unless|because|not|never|no|don't|dont|didn't|didnt|won't|wont|can't|cant|isn't|wasn't|forgot|should|maybe)\\b" +
+            // The same in Hinglish and Benglish: "na" and "mat" turn a command round ("alarm dio na": don't).
+            "|\\b(?:aur|ar|aar|abong|ebong|phir|fir|tarpor|tarpore|kintu|lekin|magar|bhi|nahi|nahin|nai|na|mat|bhool|bhul|agar|jodi|shayad|hoyto)\\b" +
+            "|\\bo\\b(?!\\s*'?\\s*clock)",
         RegexOption.IGNORE_CASE,
     )
 
     private fun rule(pattern: String) = Regex("^(?:$pattern)$", RegexOption.IGNORE_CASE)
 
-    private fun propose(intent: ActumIntent, said: String, vararg fields: Pair<String, Any?>): ProposedAction {
+    internal fun propose(intent: ActumIntent, said: String, vararg fields: Pair<String, Any?>): ProposedAction {
         val given = fields.mapNotNull { (name, value) ->
             when (value) {
                 null, "" -> null
@@ -77,7 +84,7 @@ object Rules {
     private const val CLOCK = "(?:\\d{1,2}[:.]\\d{2}(?:\\s*(?:a\\.?m\\.?|p\\.?m\\.?))?|\\d{1,2}\\s*(?:a\\.?m\\.?|p\\.?m\\.?)|\\d{1,2}\\s+o'?clock|noon|midnight)"
     private const val PART = "(?:\\s+(?:in\\s+the\\s+(?:morning|afternoon|evening)|at\\s+night|tonight))?"
     /** The day, and the part of it if said ("tomorrow morning"); only the day itself is captured. */
-    private const val DAY = "(today|tomorrow|tonight)(?:\\s+(?:morning|afternoon|evening|night))?"
+    private const val DAY = "(day\\s+after\\s+tomorrow|today|tomorrow|tonight)(?:\\s+(?:morning|afternoon|evening|night))?"
 
     /** A clock time with a day before or after it, or a stretch from now. Groups: time, day | day, time | stretch | stretch. */
     private const val WHEN = "(?:(?:at|for)\\s+)?($CLOCK$PART)(?:\\s+$DAY)?|(?:for\\s+)?$DAY\\s+(?:at|for)\\s+($CLOCK$PART)|in\\s+($STRETCH)|(?:for|after)\\s+($STRETCH)"
@@ -111,8 +118,8 @@ object Rules {
 
     // ── Money ──────────────────────────────────────────────────────────────
 
-    private const val MONEY = "(?:rs\\.?\\s*|₹\\s*|inr\\s*)?(\\d[\\d,]*(?:\\.\\d+)?k?)(?:\\s*(?:rupees?|rs|bucks|/-))?"
-    private const val NAME = "([\\p{L}][\\p{L}.'’-]*(?:\\s+[\\p{L}][\\p{L}.'’-]*)?)"
+    internal const val MONEY = "(?:rs\\.?\\s*|₹\\s*|inr\\s*)?(\\d[\\d,]*(?:\\.\\d+)?k?)(?:\\s*(?:rupees?|rs|bucks|/-))?"
+    internal const val NAME = "([\\p{L}][\\p{L}.'’-]*(?:\\s+[\\p{L}][\\p{L}.'’-]*)?)"
     private const val DATED = "(?:\\s+(today|yesterday))?"
 
     private val spentOn = rule("(?:paid|spent|i paid|i spent)\\s+$MONEY\\s+(?:for|on|at|to)\\s+(?:the\\s+|an?\\s+)?(.+?)$DATED")
@@ -142,7 +149,7 @@ object Rules {
 
     // ── Contacts ───────────────────────────────────────────────────────────
 
-    private const val PHONE = "(\\+?\\d[\\d\\s-]{5,18}\\d)"
+    internal const val PHONE = "(\\+?\\d[\\d\\s-]{5,18}\\d)"
     private val saveWhose = rule("save\\s+$NAME\\s+(?:phone\\s+|mobile\\s+)?number\\s+(?:as\\s+|is\\s+)?$PHONE")
     private val saveAs = rule("save\\s+(?:the\\s+|this\\s+)?(?:phone\\s+|mobile\\s+)?number\\s+$PHONE\\s+(?:as|for|under(?:\\s+the\\s+name)?)\\s+$NAME")
     private val newContact = rule("(?:add|new|save)\\s+contact:?\\s+$NAME\\s+$PHONE")

@@ -53,10 +53,101 @@ object EnvelopeParser {
             element is JsonObject && "intent" in element -> JsonArray(listOf(element))
             else -> return Envelope.Invalid("no actions list")
         }
-        val actions = list.mapNotNull(::action).take(MAX_ACTIONS)
+        val actions = stitched(list).take(MAX_ACTIONS)
         if (actions.isEmpty()) return Envelope.Invalid(NO_ACTIONS)
         return Envelope.Actions(actions, repaired = strict == null)
     }
+
+    /**
+     * The actions already written out whole in [partial], an answer still being
+     * written: each object closed in the actions list, read as [parse] would.
+     * The last, unfinished one is left for the next look.
+     */
+    fun finished(partial: CharSequence): List<ProposedAction> {
+        val start = Regex("\"actions\"\\s*:\\s*\\[").find(partial)?.range?.last ?: return emptyList()
+        val done = mutableListOf<JsonElement>()
+        var depth = 0
+        var from = -1
+        var inString = false
+        var escaped = false
+        for (i in start + 1 until partial.length) {
+            val c = partial[i]
+            if (inString) {
+                when {
+                    escaped -> escaped = false
+                    c == '\\' -> escaped = true
+                    c == '"' -> inString = false
+                }
+                continue
+            }
+            when (c) {
+                '"' -> inString = true
+                '{', '[' -> {
+                    if (depth == 0 && c == '{') from = i
+                    depth++
+                }
+                '}', ']' -> {
+                    depth--
+                    if (depth == 0 && c == '}' && from >= 0) {
+                        runCatching { json.parseToJsonElement(partial.substring(from, i + 1)) }.getOrNull()?.let { done += it }
+                        from = -1
+                    }
+                    // The list itself has closed.
+                    if (depth < 0) break
+                }
+            }
+        }
+        return stitched(done).take(MAX_ACTIONS)
+    }
+
+    /**
+     * The actions of [list], with the model's commonest slip mended: an action
+     * closed too soon and the rest of its fields written as an object of their
+     * own, with no intent ({"fields":{"key_dates":…}}) or a field's name for
+     * one ({"intent":"list_name",…}). Those fields go back on the action before.
+     */
+    private fun stitched(list: List<JsonElement>): List<ProposedAction> {
+        val actions = mutableListOf<ProposedAction>()
+        for (element in list) {
+            val rest = continuation(element)
+            if (rest != null && actions.isNotEmpty()) {
+                val last = actions.removeAt(actions.lastIndex)
+                actions += last.copy(fields = JsonObject(last.fields + rest))
+            } else {
+                action(element)?.let { actions += it }
+            }
+        }
+        return actions
+    }
+
+    /** The fields of [element] when it is the end of the action before it, not an action. */
+    private fun continuation(element: JsonElement): JsonObject? {
+        val item = element as? JsonObject ?: return null
+        val name = (item["intent"] as? JsonPrimitive)?.content?.trim().orEmpty()
+        val isIntent = ActumIntent.entries.any { it.name.equals(name, ignoreCase = true) }
+        if (isIntent || (name.isNotEmpty() && name.lowercase() !in FIELD_NAMES)) return null
+        val fields = (item["fields"] as? JsonObject).orEmpty()
+        val strays = item.filterKeys { it !in ENVELOPE_KEYS }
+        return JsonObject(fields + strays).takeIf { it.isNotEmpty() }
+    }
+
+    private val FIELD_NAMES = setOf(
+        "title", "date_text", "time_text", "location", "notes", "label", "amount", "counterparty_or_merchant", "category",
+        "direction", "name", "phone", "note", "items", "list_name", "text", "summary", "key_dates", "what_to_do", "reason", "repeat_days",
+    )
+
+    /** [actions] as an envelope, as the model writes one: what [parse] reads back. */
+    fun write(actions: List<ProposedAction>): String = JsonObject(
+        mapOf(
+            "actions" to JsonArray(
+                actions.map {
+                    JsonObject(
+                        mapOf("intent" to JsonPrimitive(it.intent.name), "fields" to it.fields, "source_span" to JsonPrimitive(it.sourceSpan)),
+                    )
+                },
+            ),
+        ),
+    ).toString()
 
     private fun action(element: JsonElement): ProposedAction? {
         val item = element as? JsonObject ?: return null

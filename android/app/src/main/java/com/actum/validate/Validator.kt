@@ -1,6 +1,7 @@
 package com.actum.validate
 
 import com.actum.model.ActumIntent
+import com.actum.model.Lingo
 import com.actum.model.ProposedAction
 import com.actum.parse.AmountParser
 import com.actum.parse.DateParser
@@ -97,7 +98,8 @@ class Validator(private val today: LocalDate, private val now: LocalTime = Local
 
     private inner class Draft(private val action: ProposedAction, input: String) {
         val fields = mutableListOf<CheckedField>()
-        private val said = squash(input)
+        /** The person's words, and the same with their slang made plain: a rule copies from the second. */
+        private val said = squash(input) + "\n" + squash(Lingo.plain(input))
         private val span = action.sourceSpan
 
         private fun raw(name: String): String = when (val element = action.fields[name]) {

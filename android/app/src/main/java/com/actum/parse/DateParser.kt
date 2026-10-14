@@ -83,11 +83,17 @@ object DateParser {
 
     /** Order matters: "day after tomorrow" before "tomorrow", "agamikal" before "kal". */
     private val relatives = listOf(
-        Relative(2, false, listOf("day after tomorrow")),
+        Relative(2, false, listOf("day after tomorrow", "day after tmrw", "day after tmr", "day after 2moro")),
         Relative(-2, false, listOf("day before yesterday")),
-        Relative(1, false, listOf("tomorrow", "tmrw", "tmr", "agamikal", "agami kal", "আগামীকাল", "আগামী কাল")),
-        Relative(-1, false, listOf("yesterday", "gotokal", "goto kal", "গতকাল", "গত কাল")),
-        Relative(0, false, listOf("today", "tonight", "aaj", "aj", "aajke", "ajke", "আজ", "আজকে", "आज")),
+        Relative(
+            1, false,
+            listOf(
+                "tomorrow", "tmrw", "tmr", "tmro", "tmrow", "tmrrw", "tomoro", "tomorow", "tommorow", "tommorrow", "tomorrw",
+                "2moro", "2morrow", "2morow", "2mrw", "next day", "nxt day", "agamikal", "agami kal", "আগামীকাল", "আগামী কাল",
+            ),
+        ),
+        Relative(-1, false, listOf("yesterday", "yday", "ystrdy", "gotokal", "goto kal", "গতকাল", "গত কাল")),
+        Relative(0, false, listOf("today", "tonight", "tonite", "2nite", "2day", "aaj", "aj", "aajke", "ajke", "আজ", "আজকে", "आज")),
         Relative(2, true, listOf("parshu", "parso", "parson", "porshu", "porshudin", "পরশু", "পরশুদিন", "परसों")),
         Relative(1, true, listOf("kal", "kaal", "kalke", "কাল", "কালকে", "कल")),
     )

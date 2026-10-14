@@ -53,15 +53,16 @@ class ModelGate(
 
     private suspend fun run(processor: GemmaRouter.Processor) {
         say("Checking the model file…")
-        val file = when (val found = model.check()) {
-            is GemmaModel.State.Ready -> found.file
+        val ready = when (val found = model.check()) {
+            is GemmaModel.State.Ready -> found
             is GemmaModel.State.Wrong -> return say("Model file ${found.file.path} ${found.why}")
             is GemmaModel.State.Missing ->
-                return say("No model on this phone. Push ${GemmaModel.FILE_NAME} to:\n" + found.places.last())
+                return say("No model on this phone. Push ${found.kind.fileName} to:\n" + found.places.last())
         }
-        say("Loading Gemma on $processor…")
-        val loaded = router.load(file, processor)
-        Log.i(TAG, "loaded on $processor in $loaded ms")
+        val name = model.chosen.label
+        say("Loading $name on $processor…")
+        val loaded = router.load(ready.file, processor, ready.kind.prompt)
+        Log.i(TAG, "$name loaded on $processor in $loaded ms")
         repeat(RUNS) { index ->
             say("Loaded in ${seconds(loaded)}. Run ${index + 1} of $RUNS on $processor…")
             // As in the app: the instructions are read in ahead of the request, and that is not counted.
@@ -88,7 +89,7 @@ class ModelGate(
         val times = runs.map { it.millis }.sorted()
         val summary = "median ${seconds(times[times.size / 2])} · worst ${seconds(times.last())} · " +
             "${runs.count { it.passed }} of ${runs.size} runs gave $EXPECTED_ACTIONS actions"
-        Log.i(TAG, "$processor: load ${seconds(loaded)}, $summary")
+        Log.i(TAG, "$name on $processor: load ${seconds(loaded)}, $summary")
         _state.update { it.copy(status = "Loaded on $processor in ${seconds(loaded)}.", summary = summary) }
     }
 
@@ -102,8 +103,10 @@ class ModelGate(
         _state.value = State(busy = true)
         scope.launch {
             try {
-                val file = (model.check() as? GemmaModel.State.Ready)?.file ?: return@launch say("No model on this phone.")
-                router.load(file, GemmaRouter.Processor.CPU)
+                val name = model.chosen.label
+                val ready = model.check() as? GemmaModel.State.Ready ?: return@launch say("$name is not on this phone.")
+                val loaded = router.load(ready.file, GemmaRouter.Processor.CPU, ready.kind.prompt)
+                Log.i(TAG, "$name loaded on CPU in $loaded ms")
                 val times = mutableListOf<Long>()
                 var right = 0
                 TestSet.sentences.forEachIndexed { index, (sentence, expected) ->
@@ -119,7 +122,7 @@ class ModelGate(
                 }
                 val sorted = times.sorted()
                 val summary = "$right of ${times.size} sentences right · median ${seconds(sorted[sorted.size / 2])} · worst ${seconds(sorted.last())}"
-                Log.i(TAG, "eval total: $summary")
+                Log.i(TAG, "eval total, $name: $summary")
                 _state.update { it.copy(status = "Test set done.", summary = summary) }
             } catch (e: CancellationException) {
                 throw e

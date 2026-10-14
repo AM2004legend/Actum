@@ -17,7 +17,9 @@ An **offline Android app** that does two things, both on the phone:
 It is not a chatbot, not an open-ended assistant, and it never talks to a server. If you
 find yourself building a chat screen, a cloud call or an agent that acts on its own, stop.
 
-English only for now. Hindi, Hinglish, Bengali and Benglish are wanted later.
+English first. Direct commands are also read in everyday slang ("tmrw", "2 mins later") and
+in Hinglish and Benglish written in Roman letters. Gemma reads those languages loosely;
+there is no test set for them yet. Hindi and Bengali script are wanted later.
 
 ## Rules that must not be broken
 
@@ -37,20 +39,28 @@ English only for now. Hindi, Hinglish, Bengali and Benglish are wanted later.
 5. **Two readers, one path.**
    - **Rules** read only plain, direct commands, and only when the whole sentence fits a
      pattern. A rule is right or silent, never a best guess. Anything with a second
-     clause, a negation, a question or an unexpected word goes to the model.
-   - **Gemma** reads everything else, and always reads saved pictures, PDFs and notes.
+     clause, a negation (also "na", "nahi", "mat"), a question or an unexpected word goes
+     to the model. Slang is made plain first (`Lingo`), only where it has one meaning:
+     "in a bit" or "eod" is never turned into a time.
+   - A saved picture, PDF or note is split into sentences; each sentence a rule reads
+     whole becomes that rule's card, and **Gemma** reads the rest. Gemma also reads
+     everything typed or spoken that no rule reads.
    - Both produce the same kind of proposal, which goes through the same validator, the
      same card and the same confirmation.
 6. **An answer must be about what was said.** A model reply whose actions are not
    grounded in the person's words is dropped, not shown.
-7. **No fake success, no invented claims.** Show what actually happened. A missing or
+7. **Actum never teaches itself.** Requests that went to the model but could have been
+   instant, and rule cards the person corrected, are kept on the phone as lessons for a
+   person to read and turn into rules and tests. No rule is ever made or changed by the
+   app.
+8. **No fake success, no invented claims.** Show what actually happened. A missing or
    unsure field is marked and blocks or questions the action. Never put a capability in
    the UI or the README that is not built and checked.
-8. **No sensitive advice.** `EXPLAIN` restates a document only. No medical, legal or
+9. **No sensitive advice.** `EXPLAIN` restates a document only. No medical, legal or
    financial advice anywhere.
-9. **Voice stays on the phone.** Only Android's on-device speech recognizer. If the phone
+10. **Voice stays on the phone.** Only Android's on-device speech recognizer. If the phone
    has none, say so and do not listen. Keep the words, never the audio.
-10. **Verify before you assert.** For a library API, a dependency or a model file, read
+11. **Verify before you assert.** For a library API, a dependency or a model file, read
     the real artifact or current official docs. Do not guess.
 
 ## The actions
@@ -60,10 +70,13 @@ The model returns strict JSON, at most 5 actions:
 ```json
 { "actions": [
   { "intent": "EVENT|ALARM|EXPENSE|CONTACT|TODO|DIARY|EXPLAIN|UNSUPPORTED",
-    "fields": { },
-    "source_span": "the words from the input that justify this action" }
+    "fields": { } }
 ] }
 ```
+
+Each action's `source_span` (the person's words it came from) is found by Kotlin
+(`Spans`), after the grounding check, not written by the model: writing it out was about a
+fifth of every answer. Rules set it to the sentence they read.
 
 | Intent | Fields (required*) | What confirming does |
 | --- | --- | --- |
@@ -77,21 +90,28 @@ The model returns strict JSON, at most 5 actions:
 | UNSUPPORTED | reason | "Actum can't do this yet." Nothing runs. |
 
 Dates and times are copied as written (`date_text`, `time_text`) and resolved by Kotlin:
-relative days (today, tomorrow, kal, parshu), weekdays, written dates, clock times, and
-stretches from now ("in 8 minutes").
+relative days (today, tomorrow, tmrw, next day, kal, parshu), weekdays, written dates,
+clock times ("7 pm", "subah 7 baje", "sokal 7 tay"), and stretches from now ("in 8
+minutes", "2 mins later", "5 min baad", "10 minute pore").
 
 ## How a request flows
 
 1. Words arrive: typed, spoken (on-device recognizer, editable transcript), or taken from
    a saved item's text.
-2. Typed and spoken words are offered to the rules first. A saved item skips them.
-3. Otherwise Gemma reads them. Its reply is repaired if malformed, retried once, checked
-   for being about the message, and refused if it still is not an answer.
+2. Typed and spoken words are offered to the rules first, whole. A saved item's are split
+   into sentences and each is offered to the rules.
+3. Gemma reads what is left, as it is written: each action is shown as a card as soon as
+   it is complete. Its reply is repaired if malformed, retried once, checked for being
+   about the message, and refused if it still is not an answer. Typed and spoken words
+   are read ahead of the tap; a saved item is read in the background soon after it is
+   saved, and its proposals are kept with it, so its cards are there when asked for.
 4. The validator checks every field against the person's words and resolves dates and
    times: verified, unsure (with one question, and choices where there are some), or
    missing.
 5. One card per action. Fields can be edited; an edit is validated again.
 6. The person confirms. The executor runs it and writes a small JSON record to the log.
+7. A confirmed request that could have been read by a rule, or a rule's card that was
+   corrected, is kept as a lesson (never a diary's words).
 
 ## UI
 

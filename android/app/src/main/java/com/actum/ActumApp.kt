@@ -11,6 +11,7 @@ import com.actum.ocr.OcrQueue
 import com.actum.ui.theme.Look
 import com.actum.ocr.uploadScheduler
 import com.actum.act.Actor
+import com.actum.act.ActWorker
 import com.actum.act.Executor
 import com.actum.data.Diary
 import com.actum.data.DiaryVault
@@ -69,8 +70,11 @@ class ActumApp : Application() {
     /** Gemma on the phone: the one model, loaded when first asked. */
     val router: GemmaRouter by lazy { GemmaRouter(cacheDir) }
 
+    /** Which Gemma file is on the phone and chosen. */
+    val gemma: GemmaModel by lazy { GemmaModel(this) }
+
     /** Milestone M1's measurement, here so a run outlives a rotation. */
-    val modelGate: ModelGate by lazy { ModelGate(GemmaModel(this), router, applicationScope) }
+    val modelGate: ModelGate by lazy { ModelGate(gemma, router, applicationScope) }
 
     /** The phone's own key, under the diary's password and for entries written before one is set. */
     val diaryKeystore: Diary by lazy { Diary() }
@@ -91,7 +95,7 @@ class ActumApp : Application() {
     }
 
     /** A request to do something, from the person's words to the confirmed action. */
-    val actor: Actor by lazy { Actor(GemmaModel(this), router, Executor(database.listsDao(), diaryVault, diaryKeystore), applicationScope) }
+    val actor: Actor by lazy { Actor(gemma, router, Executor(database.listsDao(), diaryVault, diaryKeystore), database.preparedDao(), database.lessonDao(), applicationScope) }
 
     override fun onCreate() {
         super.onCreate()
@@ -99,10 +103,17 @@ class ActumApp : Application() {
         Look.load(this)
         // What is saved or read is embedded on the phone, for search by meaning.
         // Nothing is uploaded: Actum has no server and no network.
-        uploadScheduler = { EmbedWorker.schedule(it) }
+        // And read for what it asks to be done, so its cards are ready before they are asked for.
+        uploadScheduler = {
+            EmbedWorker.schedule(it)
+            ActWorker.schedule(it)
+        }
         // Inside applicationScope so none of it touches the main thread during
         // a capture's cold start. Building the queue builds the database.
         OcrQueue.launchIn(applicationScope, readingOriginals) { OcrQueue(this) }
-        applicationScope.launch { EmbedWorker.schedule(this@ActumApp) }
+        applicationScope.launch {
+            EmbedWorker.schedule(this@ActumApp)
+            ActWorker.schedule(this@ActumApp)
+        }
     }
 }

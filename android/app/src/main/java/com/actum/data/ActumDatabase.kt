@@ -26,9 +26,9 @@ import com.actum.data.TodoItem
 @Database(
     entities = [
         Memory::class, MemoryFts::class, PendingDelete::class, ImportedSource::class, Embedding::class,
-        TodoItem::class, Expense::class, DiaryEntry::class, LogRecord::class, Marker::class,
+        TodoItem::class, Expense::class, DiaryEntry::class, LogRecord::class, Marker::class, Prepared::class, Lesson::class,
     ],
-    version = 5,
+    version = 7,
     exportSchema = true,
     autoMigrations = [
         // Local-first L1: the embeddings table.
@@ -39,6 +39,10 @@ import com.actum.data.TodoItem
         AutoMigration(from = 3, to = 4),
         // Actum: its own calendar marks.
         AutoMigration(from = 4, to = 5),
+        // Actum: saved items' actions, read ahead of the tap.
+        AutoMigration(from = 5, to = 6),
+        // Actum: what the rules could learn from.
+        AutoMigration(from = 6, to = 7),
     ],
 )
 @TypeConverters(Converters::class)
@@ -63,6 +67,12 @@ abstract class ActumDatabase : RoomDatabase() {
 
     // Actum: what confirmed TODO and EXPENSE actions write
     abstract fun listsDao(): ListsDao
+
+    // Actum: saved items' actions, read in the background
+    abstract fun preparedDao(): PreparedDao
+
+    // Actum: requests the rules could learn from
+    abstract fun lessonDao(): LessonDao
 
     companion object {
         private const val DB_NAME = "actum.db"

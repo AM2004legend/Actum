@@ -14,7 +14,7 @@ object TimeParser {
             "evening", "sham", "shaam", "bikel", "bikal", "bikele", "bikale", "sondha", "sondhay",
             "বিকাল", "বিকেল", "বিকেলে", "সন্ধ্যা", "সন্ধ্যায়", "शाम",
         ),
-        Part.NIGHT to listOf("night", "tonight", "raat", "raate", "raat ko", "রাত", "রাতে", "रात"),
+        Part.NIGHT to listOf("night", "tonight", "tonite", "2nite", "raat", "raate", "raat ko", "রাত", "রাতে", "रात"),
     ).mapValues { (_, words) -> Words.whole(words) }
 
     /** "am", "a.m." and "a.m", the last as a speech recognizer's text arrives with its full stop trimmed. */
@@ -64,10 +64,11 @@ object TimeParser {
         "sixty" to 60.0, "ninety" to 90.0, "half a" to 0.5, "half an" to 0.5, "a couple of" to 2.0, "couple of" to 2.0,
         "a few" to 3.0,
     )
-    private val seconds = mapOf("h" to 3600, "m" to 60, "s" to 1)
+    /** By the unit's first letter: "ghanta" and "ghonta" are hours. */
+    private val seconds = mapOf("h" to 3600, "g" to 3600, "m" to 60, "s" to 1)
     private val span = Regex(
         "(?<![\\p{L}\\d.])(\\d+(?:\\.\\d+)?|${counts.keys.sortedByDescending { it.length }.joinToString("|")})\\s*(?:more\\s+)?" +
-            "(hours?|hrs?|minutes?|mins?|seconds?|secs?)(?![\\p{L}])(\\s+and\\s+a\\s+half)?",
+            "(hours?|hrs?|ghan?ta|ghante|ghonta|minutes?|mins?|minit|seconds?|secs?)(?![\\p{L}])(\\s+and\\s+a\\s+half)?",
     )
 
     /**

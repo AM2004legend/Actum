@@ -16,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.actum.data.Expense
 import com.actum.data.LogRecord
+import com.actum.data.Lesson
 import com.actum.data.Marker
 import com.actum.data.TodoItem
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -114,6 +115,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     /** What was confirmed, newest first, narrowed to the records holding the typed words. */
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    /** What the rules could learn, newest first. */
+    val lessons: StateFlow<List<Lesson>> = app.database.lessonDao().all()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun forgetLessons() {
+        app.applicationScope.launch { app.database.lessonDao().clear() }
+    }
+
     val log: StateFlow<List<LogRecord>> = logFilter
         .flatMapLatest { lists.log(it.trim()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -177,8 +186,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun setNote(id: String, note: String?) {
         app.applicationScope.launch {
             if (app.database.captureDao().setNote(listOf(id), note) > 0) {
-                // The note is part of what is embedded.
+                // The note is part of what is embedded, and of what is read for actions.
                 EmbedWorker.schedule(app)
+                com.actum.act.ActWorker.schedule(app)
             }
         }
     }

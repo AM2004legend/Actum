@@ -76,6 +76,7 @@ import com.actum.data.DiaryEntry
 import com.actum.data.DiaryVault
 import com.actum.data.Expense
 import com.actum.data.LogRecord
+import com.actum.data.Lesson
 import com.actum.data.TodoItem
 import com.actum.model.ActumIntent
 import kotlinx.serialization.json.Json
@@ -436,7 +437,35 @@ private fun Log(viewModel: HomeViewModel) {
             }
         }
     }
+    Learning(viewModel)
 }
+
+/**
+ * What the rules could learn from your requests: kept on this phone only, read
+ * by whoever improves Actum's rules, and forgotten when asked.
+ */
+@Composable
+private fun Learning(viewModel: HomeViewModel) {
+    val lessons by viewModel.lessons.collectAsStateWithLifecycle()
+    if (lessons.isEmpty()) return
+    Spacer(Modifier.height(12.dp))
+    Text("Actum is learning", style = serif(22.sp, lineHeight = 26.sp))
+    Text("requests that took the model but could be instant, and direct commands read wrong · kept on this phone only", style = monoStyle(11.sp, BoneDim, lineHeight = 16.sp))
+    lessons.take(SHOWN_LESSONS).forEach { lesson ->
+        val why = when (lesson.kind) {
+            Lesson.SLOW -> "could be instant"
+            Lesson.RULE_WRONG -> "read wrong, asked Gemma"
+            else -> "read, then corrected"
+        }
+        Column(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(lesson.words, style = sans(15.sp, Bone, lineHeight = 21.sp))
+            Text("$why · ${lesson.intent.lowercase()} · ${moment(lesson.createdAt)}", style = monoStyle(11.sp, InkOutline))
+        }
+    }
+    Text("forget these", style = monoStyle(12.sp, AmberBright), modifier = Modifier.clickable { viewModel.forgetLessons() }.padding(vertical = 16.dp, horizontal = 4.dp))
+}
+
+private const val SHOWN_LESSONS = 20
 
 /** A record's fields in a line, read back out of its JSON. A diary's record has none, by design. */
 private fun summary(record: LogRecord): String {

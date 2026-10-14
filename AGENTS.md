@@ -174,15 +174,47 @@ wanted, or the plan later moves up to the 1B model.
 
 ### Running a different model in the app
 
-Being built on Aritra's machine, not yet on `main`. When it lands, this section will say
-how to put a model file on the phone and choose it. Until then, Part 6 waits.
+Actum knows a fixed list of published model files (`GemmaModel.Kind`): each with its file
+name, size, SHA-256 and the way it is given its instructions (`GemmaRouter.Prompt`). One
+is chosen at a time; the choice is kept on the phone.
+
+| Id | File | Size | Prompt |
+| --- | --- | --- | --- |
+| `gemma4-e2b` (default) | `gemma-4-E2B-it.litertlm` | 2.59 GB | `SYSTEM`: a system instruction |
+| `gemma3-1b` | `gemma3-1b-it-int4.litertlm` from `litert-community/Gemma3-1B-IT` | 584 MB | `TURNS`: an opening exchange |
+| `gemma3-270m` | `gemma3-270m-it-q8.litertlm` from `litert-community/gemma-3-270m-it` | 304 MB | `TURNS` |
+
+Gemma 3 has no system turn: its chat template folds a system instruction into the first
+message, so the instructions could not be read in ahead and every request paid for them
+(11.4 s instead of 6.6 s on the 1B). `TURNS` gives them as a first exchange instead, which
+is read in when the app opens.
+
+To run one: push its file next to the others, then choose it with the same `adb` extra
+the benchmarks use (force-stop the app first, as for a benchmark):
+
+```sh
+adb push models/gemma3-270m-it-q8.litertlm /sdcard/Android/data/com.actum.app/files/
+adb shell am force-stop com.actum.app
+adb shell am start -n com.actum.app/com.actum.MainActivity --es model gemma3-270m            # just choose
+adb shell am start -n com.actum.app/com.actum.MainActivity --es model gemma3-270m --es measure eval
+```
+
+`--es model gemma4-e2b` goes back. **A fine-tuned model** needs one more entry in
+`GemmaModel.Kind` (file name, size, hash) and, since it is trained on a one-line
+instruction, a prompt style that gives only that line; add both in the same change, with
+its benchmark rows. Saved items' kept proposals are tied to the model that made them, so
+switching models has them read again.
+
+Untrained, on the reference phone (14 October 2026): Gemma 3 1B 14 of 30 at 7.0 s median,
+Gemma 3 270M 5 of 30 at 4.3 s, against Gemma 4's 29 of 30 with the same prompt. Details
+in `benchmarks/nothing-a001t.md`.
 
 ## What you need
 
 | | |
 | --- | --- |
 | Phone | Android 10 or later, 64-bit ARM (`adb shell getprop ro.product.cpu.abi` says `arm64-v8a`), USB debugging on. |
-| Free space on the phone | About **3.5 GB**: 2.59 GB (Gemma) + 0.39 GB (embedding model) + about 0.2 GB for the app, plus working room. |
+| Free space on the phone | About **3.5 GB**: 2.59 GB (Gemma) + 0.39 GB (embedding model) + about 0.2 GB for the app, plus working room. Another 0.9 GB to try the two Gemma 3 models. |
 | RAM | Run so far only on 8 GB. On less, try it and record what happens; do not assume. |
 | Voice | Android 12 or later, with an English on-device speech pack installed in Android's settings. Without one the voice sheet says so and does not listen; everything else works. |
 | Computer | JDK 21, Android SDK with API 36.1, `adb` on the path, about 3 GB free for the models. Gradle 9.4.1, AGP 9.2.1 and Kotlin 2.4.21 come through the wrapper. |
@@ -232,8 +264,10 @@ Things that trip people up on a new machine or phone:
   no stray `java.exe` processes are left, or run `android/gradlew --stop`.
 - **Opening Actum starts Gemma.** It loads the model and reads its instructions in the
   background as soon as the home screen opens, and reads requests ahead while you type.
-  Expect some CPU use and warmth while the app is open; nothing of this happens when
-  sharing into Actum.
+- **Saving something starts Gemma too, a little later.** A background job (`ActWorker`,
+  WorkManager, not on low battery) reads items saved in the last 7 days, up to 10 a pass,
+  and keeps what they propose. Anything the person asks for stops it; it tries again a
+  minute later. Expect some CPU use and warmth for a while after saving or opening.
 - **The first request after install is slow.** Actum hashes the 2.59 GB Gemma file once
   (tens of seconds) before trusting it, then remembers.
 - **The microphone prompt** appears the first time the mic is tapped.
@@ -254,6 +288,10 @@ Type each in the home screen's field and tap **Do this**, unless it says otherwi
 | Tap the mic, say a few sentences, tap **Save to diary** | "In your diary". Set a diary password in the Diary tab, lock it, unlock it. |
 | Tap **privacy** | "Actum cannot reach the internet", and a permission list with no `INTERNET`. |
 | Tap the sun / moon | The whole app switches between dark and beige. |
+| `set an alarm 2 mins later`, then `kal subah 7 baje alarm laga do`, then `doodh aur ande lene hai` | Each instantly, read without the model: an alarm 2 minutes ahead; an alarm for tomorrow 7:00 AM; a to-do with two items. |
+| `kal sokal 7 tay alarm dio na` | Not read by a rule (it says *don't*); Gemma reads it. |
+| `exam on 12 November at 10 am, buy graph paper, paid 300 for the admit card` | Cards appear one at a time while "Still reading" shows below them. |
+| Copy a note with two or three plain commands in it, save it with the tile, wait a minute, open it and tap **Find things to do in this** | The cards appear at once, "read on this phone when it was saved". |
 
 Before driving a phone over `adb`, check which app is in front before every
 `input tap`. The phone's owner may be using it; a blind tap once landed in another app.
@@ -273,7 +311,17 @@ cd android && ./gradlew :app:testDebugUnitTest
 adb logcat -s ActumAct      # every request: "rule: …" or the time taken and the model's raw answer
 adb logcat -s ActumVoice    # speech packs found, recognizer errors
 adb logcat -s ActumM1       # benchmark reports
+
+# what the rules could learn from the person's requests (kept on the phone only)
+adb shell am force-stop com.actum.app      # like a benchmark, it only starts from a fresh launch
+adb shell am start -n com.actum.app/com.actum.MainActivity --es lessons dump
+adb logcat -d -s ActumLessons
 ```
+
+Lessons are requests that went to Gemma but became one plain action the person confirmed
+unchanged (a rule could have read it), and rule cards the person corrected. They are also
+listed at the bottom of the Log tab. Turn them into rules and test sentences by hand
+(`Rules.kt` / `Desi.kt` / `Lingo.kt` and `EverydayTest.kt`); never automatically.
 
 Benchmarks: see `benchmarks/README.md`. Two things to remember: always `force-stop` the
 app first (a measurement only starts from a fresh launch), and record the battery
@@ -286,17 +334,22 @@ One Gradle module, `android/app`. All code is under
 
 | Path | What it is |
 | --- | --- |
-| `model/GemmaModel` | Finds the sideloaded Gemma file and checks its SHA-256. The file name, size and hash are constants here; a different model means changing all three. |
-| `model/GemmaRouter` | The LiteRT-LM engine, the prompt, one retry. Keeps a conversation ready with the instructions already read in (`warmUp`); `cancel` stops a reading part way. |
-| `model/Rules` | Direct commands read without the model. Whole-sentence patterns only. |
-| `model/Envelope` | The JSON envelope, the intent enum, and the repair of malformed replies. |
+| `model/GemmaModel` | The catalogue of model files Actum can run (`Kind`: file, size, SHA-256, prompt style), which one is chosen, and the hash check. |
+| `model/GemmaRouter` | The LiteRT-LM engine, the prompt (as a system instruction or as opening turns), one retry. Streams the answer and hands on each action as it is finished. Keeps a conversation ready with the instructions read in (`warmUp`); `cancel` stops a reading part way. |
+| `model/Rules` | English direct commands read without the model. Whole-sentence patterns only. |
+| `model/Lingo` | Slang made plain before the rules read it ("tmrw", "2 mins later", "plz"). |
+| `model/Desi` | Hinglish and Benglish direct commands, by the same law as `Rules`. |
+| `model/Pieces` | Splits a saved item's words into sentences, careful with OCR's line breaks, and gives the plain ones to the rules. |
+| `model/Envelope` | The JSON envelope, the intent enum, the repair of malformed replies (including fields written as an object of their own), and `finished` for an answer still being written. |
 | `model/Grounding` | Drops model actions that are not about what was said. |
+| `model/Spans` | Finds the person's words each model action came from (the model no longer writes them). |
 | `parse/` | `DateParser`, `TimeParser`, `AmountParser`, `PhoneParser`. Each returns `Sure`, `Unsure` (candidates and one question) or `None`. |
 | `validate/Validator` | Turns a proposal into checked fields (`VERIFIED / UNSURE / MISSING`) and a verdict (`PASS / UNCERTAIN / FAIL`). |
-| `act/Actor` | A request from words to cards to confirmation. Lives in the Application, so it survives rotation. Loads Gemma when the app opens (`warmUp`) and reads typed or spoken words before the tap (`readAhead`), stopping that reading when the words change. |
+| `act/Actor` | A request from words to cards to confirmation. Lives in the Application, so it survives rotation. Loads Gemma when the app opens (`warmUp`), reads typed or spoken words before the tap (`readAhead`), shows cards as they are written, reads saved items in the background (`prepare`) and shows what was kept (`askSaved`), and records lessons. |
+| `act/ActWorker` | The background job that prepares recently saved items. |
 | `act/Executor` | What confirming does: intents and database writes, the log record, the calendar mark. |
 | `voice/Listener` | Android's on-device speech recognizer only. Picks an installed English pack, keeps one recognizer per sheet, ignores reports from one it has let go. |
-| `data/` | Room entities and `ListsDao` (to-dos, expenses, diary, log, calendar marks); `DiaryVault` (password lock) and `Diary` (keystore layer); the saved-item library (`Memory`, FTS). |
+| `data/` | Room entities and `ListsDao` (to-dos, expenses, diary, log, calendar marks); `Prepared` (saved items' kept proposals); `Lessons`; `DiaryVault` (password lock) and `Diary` (keystore layer); the saved-item library (`Memory`, FTS). |
 | `capture/`, `ocr/`, `embed/` | Share sheet and tile; ML Kit text recognition; EmbeddingGemma vectors and on-phone search. |
 | `ui/act/` | `ActSheet` (cards), `VoiceSheet`, `ListsSheet` and `CalendarTab`, `ProofSheet` (privacy), `IntentLook` (action colours and icons). |
 | `ui/home/`, `ui/theme/`, `ui/common/` | Home screen, search, detail sheet; the two looks (`Look`, `Color`); the mark and glyphs. |
@@ -304,7 +357,7 @@ One Gradle module, `android/app`. All code is under
 
 Good to know:
 
-- **One Room database**, `ActumDatabase`, version 5, with auto-migrations and exported
+- **One Room database**, `ActumDatabase`, version 7, with auto-migrations and exported
   schemas in `android/app/schemas/`. A schema change means a version bump, an
   `AutoMigration`, and committing the new schema JSON. Never a destructive migration.
 - **Colours are getters.** Every name in `ui/theme/Color.kt` and `IntentLook.kt` answers
@@ -323,22 +376,29 @@ Good to know:
 
 This is where most of the risk is.
 
-- **Rules** (`model/Rules.kt`, `RulesTest.kt`). A rule must be right or silent. For every
-  new pattern, add sentences to both lists in the test: what it must read, and what it
-  must leave to the model. The test also runs every benchmark sentence through the rules
-  and fails if one is misread.
+- **Rules** (`Rules.kt`, `Desi.kt`, `Lingo.kt`; `RulesTest.kt`, `EverydayTest.kt`,
+  `PiecesTest.kt`). A rule must be right or silent. For every new pattern, add sentences
+  to both lists in the test: what it must read, and what it must leave to the model. The
+  test also runs every benchmark sentence through the rules and fails if one is misread.
+  A slang swap must have one meaning only. Rules also read saved items now, a sentence
+  at a time, so think of OCR text too: a sentence wrapped over two lines must not be
+  read as its second half. If a change alters what rules read, raise
+  `Actor.PREPARED_VERSION` so kept proposals are read again.
 - **The prompt and the answer format** (`GemmaRouter`). Latency is mostly token count: a
   longer prompt or answer costs seconds. Small changes also change how often the model
   malforms its JSON. Removing one field once dropped accuracy from 29 to 25 of 30 until
   the repair step was taught the new slip, and a reworded retry once made the model
-  return its own example as an answer. So: after any change here, run both benchmarks
-  and read the missed sentences, not just the score.
+  return its own example as an answer. Dropping `source_span` from the answer saved a
+  fifth of the time but made the model write an action's last fields as an object of
+  their own until the repair stitched them back. So: after any change here, run both
+  benchmarks and read the missed sentences, not just the score.
 - **Repair and grounding** (`Envelope.kt`, `Grounding.kt`). Each has a test file; a slip
   seen on a phone goes in as a test first.
 
 ## Known gaps
 
-- English only. No Hinglish or Benglish test set exists, so no accuracy figure for them.
+- Hinglish and Benglish: the rules read the patterns in `EverydayTest`; Gemma reads the
+  rest loosely. No test set exists for either, so there is no accuracy figure.
 - Real speech has been tested by the owner on one phone, not by an agent.
 - OCR is Latin script only.
 - Only the diary is encrypted. The rest is plain in private storage.
@@ -347,7 +407,12 @@ This is where most of the risk is.
 - The benchmark set is not held out: it has been used to find faults.
 - A measurement does not start if the app is already open; it needs `force-stop` first.
 - WorkManager adds `RECEIVE_BOOT_COMPLETED`, `WAKE_LOCK` and `FOREGROUND_SERVICE`; it is
-  used only for the embedding pass.
+  used for the embedding pass and for preparing saved items.
+- The benchmarks call the model without streaming; they measure the whole answer. The time
+  to the first card on screen is logged (`card N shown at … ms`) but not benchmarked.
+- A benchmark started while `ActWorker` is preparing an item shares the CPU with it. Open
+  the app, let it settle (`adb logcat -s ActumAct` quiet), then force-stop and measure.
+- The lessons list has not yet been checked on a phone.
 
 ## Conventions
 

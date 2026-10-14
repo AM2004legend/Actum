@@ -306,8 +306,8 @@ fun HomeScreen(
                         onFindActions = EmbedText.text(memory).takeIf { it.isNotBlank() }?.let { words ->
                             {
                                 openedId = null
-                                // A saved picture, PDF or note is never a direct command: always the model.
-                                viewModel.actor.ask(words, rules = false)
+                                // Read in the background when it was saved, most often: its plain sentences by rule, the rest by Gemma.
+                                viewModel.actor.askSaved(memory.id, words)
                             }
                         },
                     )
