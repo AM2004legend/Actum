@@ -51,6 +51,27 @@ Things that trip people up on a new machine or phone:
   once and try again. Actum also looks in its private `files/models/` folder; copying a
   model there through `adb shell run-as com.actum.app` is a fallback that has not been
   tried.
+- **VS Code's Java extensions must not import this project.** Red Hat's Java extension
+  (and the Gradle extension in the Java pack) import any Gradle project they find, using
+  their own bundled Java. That Java never matches the command line's, so every import
+  starts a new 2 GB Gradle daemon; when imports restart, they pile up. On a 16 GB machine
+  this once ran out of memory within six minutes and left crash reports
+  (`hs_err_pid*.log`) in the repo folder. Nothing in VS Code is needed to build Actum. If
+  you open the repo in VS Code with those extensions installed, put this in
+  `.vscode/settings.json` (the folder is git-ignored, so it is not shared) and reload the
+  window:
+
+  ```json
+  {
+    "java.import.gradle.enabled": false,
+    "java.import.maven.enabled": false,
+    "java.autobuild.enabled": false,
+    "gradle.autoDetect": "off"
+  }
+  ```
+
+  Or disable those extensions for this workspace. Either way, check with Task Manager that
+  no stray `java.exe` processes are left, or run `android/gradlew --stop`.
 - **The first request after install is slow.** Actum hashes the 2.59 GB Gemma file once
   (tens of seconds) before trusting it, then remembers.
 - **The microphone prompt** appears the first time the mic is tapped.
