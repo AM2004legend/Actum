@@ -39,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.actum.act.Outcome
+import kotlinx.coroutines.delay
 import com.actum.ui.common.Grabber
 import com.actum.ui.home.monoStyle
 import com.actum.ui.home.sans
@@ -62,12 +63,21 @@ fun ColumnScope.VoiceSheet(
     listener: Listener,
     onDo: (String) -> Unit,
     onDiary: (String, (Outcome) -> Unit) -> Unit,
+    onWords: (String) -> Unit,
     onClose: () -> Unit,
 ) {
     // The words once heard, as corrected by hand. Refilled by each new take.
     var words by remember { mutableStateOf("") }
     var written by remember { mutableStateOf<Outcome?>(null) }
     LaunchedEffect(state) { if (state is Listener.State.Heard) words = state.text }
+    // The words are handed on to be read the moment they are known, and after a short pause in
+    // any correction, so the reading is under way before "Do this" is tapped.
+    LaunchedEffect(words) {
+        if (words.isNotBlank()) {
+            delay(CORRECTION_PAUSE_MILLIS)
+            onWords(words.trim())
+        }
+    }
 
     Grabber(Modifier.align(Alignment.CenterHorizontally))
     Column(
@@ -184,3 +194,6 @@ private fun Act(label: String, fill: androidx.compose.ui.graphics.Color, ink: an
 private fun Link(label: String, onClick: () -> Unit) {
     Text(label, style = monoStyle(12.sp, BoneDim), modifier = Modifier.clickable(onClick = onClick).padding(vertical = 16.dp, horizontal = 6.dp))
 }
+
+/** A heard transcript is handed on almost at once; a hand correction after a short pause. */
+private const val CORRECTION_PAUSE_MILLIS = 300L

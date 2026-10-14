@@ -1,11 +1,13 @@
 package com.actum.act
 
 import android.content.Context
+import android.os.SystemClock
 import android.util.Log
 import com.actum.model.Envelope
 import com.actum.model.GemmaModel
 import com.actum.model.GemmaRouter
 import com.actum.model.ProposedAction
+import com.actum.model.Routed
 import com.actum.model.Rules
 import com.actum.model.ActumIntent
 import com.actum.validate.CheckedAction
@@ -15,6 +17,8 @@ import com.actum.validate.FieldState
 import com.actum.validate.Validator
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -72,10 +76,13 @@ class Actor(
         val said = input.trim()
         if (said.isEmpty()) return
         job?.cancel()
+        // The same words already being read, from before the tap: picked up, not started again.
+        val ahead = early?.takeIf { it.text == said }
+        if (ahead == null) dropEarly() else early = null
         _state.value = State.Working(said, "Checking the model…")
         job = scope.launch {
             try {
-                _state.value = (if (rules) direct(said) else null) ?: work(said)
+                _state.value = (if (rules) direct(said) else null) ?: work(said, ahead)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
@@ -105,6 +112,62 @@ class Actor(
         }
     }
 
+    /** Words being read ahead of the person's tap, and the reading. */
+    private class Early(val text: String, val reading: Deferred<Routed?>)
+
+    /** Touched only on the main thread, by [readAhead] and [ask]. */
+    private var early: Early? = null
+
+    /**
+     * Starts reading [input] before the person taps **Do this**: while they
+     * pause typing, or as soon as their speech has been turned into words.
+     * If they then ask with the same words, the reading is already part done;
+     * if the words change, it is stopped and the new ones are read instead.
+     * Nothing is shown and nothing is done with it until they ask.
+     *
+     * Not for direct commands, which a rule reads instantly anyway, nor for a
+     * word or two typed into search, which is most likely a search.
+     */
+    fun readAhead(input: String) {
+        val said = input.trim()
+        if (said.split(Regex("\\s+")).size < MIN_WORDS_AHEAD || Rules.route(said) != null) {
+            dropEarly()
+            return
+        }
+        if (early?.text == said) return
+        dropEarly()
+        Log.i(TAG, "reading ahead: $said")
+        early = Early(said, scope.async { readNow(said) })
+    }
+
+    /** Gives up any reading ahead: the words it was for are gone. */
+    fun dropEarly() {
+        val gone = early ?: return
+        early = null
+        gone.reading.cancel()
+        router.cancel()
+    }
+
+    /** Loads Gemma if need be and reads [said]. Null when the model is not on the phone, or it failed. */
+    private suspend fun readNow(said: String): Routed? = try {
+        val file = (model.check() as? GemmaModel.State.Ready)?.file
+        if (file == null) {
+            null
+        } else {
+            router.load(file, PROCESSOR)
+            // A long screenshot or PDF: only its opening is read, or the wait runs to minutes.
+            router.route(said.take(MAX_INPUT_CHARS)).also {
+                // Ready for the next request while this one's cards are being read.
+                scope.launch { runCatching { router.warmUp() } }
+            }
+        }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Throwable) {
+        Log.w(TAG, "reading failed", e)
+        null
+    }
+
     /** A direct command, read by a rule in no time at all. Null for everything else, which is Gemma's. */
     private fun direct(said: String): State? {
         val proposed = Rules.route(said) ?: return null
@@ -113,27 +176,26 @@ class Actor(
         return State.Ready(said, listOf(card), seconds = 0.0, byRule = true)
     }
 
-    private suspend fun work(said: String): State {
-        val file = when (val found = model.check()) {
-            is GemmaModel.State.Ready -> found.file
+    private suspend fun work(said: String, ahead: Early?): State {
+        when (model.check()) {
+            is GemmaModel.State.Ready -> Unit
             is GemmaModel.State.Wrong -> return State.Refused(said, "The model file on this phone is not the published one.")
             is GemmaModel.State.Missing -> return State.Refused(said, "The Gemma model is not on this phone yet.")
         }
-        _state.value = State.Working(said, "Loading Gemma…")
-        router.load(file, PROCESSOR)
-        _state.value = State.Working(said, "Reading what you asked. About half a minute on this phone.")
-        // A long screenshot or PDF: only its opening is read, or the wait runs to minutes.
-        val routed = router.route(said.take(MAX_INPUT_CHARS))
-        Log.i(TAG, "${routed.millis} ms: ${routed.answers.last()}")
-        // Ready for the next request while this one's cards are being read.
-        scope.launch { runCatching { router.warmUp() } }
+        _state.value = State.Working(said, if (ahead != null) "Already reading this. Almost there." else "Reading what you asked.")
+        val started = SystemClock.elapsedRealtime()
+        val routed = ahead?.reading?.await() ?: readNow(said)
+            ?: return State.Refused(said, "The model stopped before it finished. Try again.")
+        // What the person waited, from their tap; reading that began earlier is not counted twice.
+        val waited = SystemClock.elapsedRealtime() - started
+        Log.i(TAG, "${routed.millis} ms reading, ${waited} ms waited${if (ahead != null) " (read ahead)" else ""}: ${routed.answers.lastOrNull()}")
         return when (val envelope = routed.envelope) {
             is Envelope.Invalid -> State.Refused(said, "Actum couldn't make an action out of that.")
             is Envelope.Actions -> {
                 // Today is the phone's, read here: the model never sees or computes a date.
                 val validator = Validator(LocalDate.now())
                 val cards = envelope.actions.mapIndexed { i, action -> Card(i, validator.check(action, said), proposed = action) }
-                State.Ready(said, cards, routed.millis / 1000.0)
+                State.Ready(said, cards, waited / 1000.0)
             }
         }
     }
@@ -222,6 +284,9 @@ class Actor(
     private companion object {
         const val TAG = "ActumAct"
         const val MAX_INPUT_CHARS = 1_200
+
+        /** Fewer typed words than this is most likely a search, and is not read ahead. */
+        const val MIN_WORDS_AHEAD = 3
         val LISTS = setOf("items", "repeat_days", "key_dates")
 
         /** Measured on the demo phone: the CPU answers in about half the GPU's time. */

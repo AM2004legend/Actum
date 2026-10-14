@@ -10,11 +10,15 @@ import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
 import com.google.ai.edge.litertlm.Message
 import com.google.ai.edge.litertlm.SamplerConfig
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
+
+/** Why an envelope is [Envelope.Invalid] when its reading was stopped part way by [GemmaRouter.cancel]. */
+const val STOPPED = "stopped"
 
 /** What one input came back as, and what it cost. */
 data class Routed(
@@ -46,6 +50,10 @@ class GemmaRouter(private val cacheDir: File) {
      * is the same every time, so it is done before the person asks.
      */
     private var warm: Conversation? = null
+
+    /** The conversation reading right now, for [cancel]. */
+    @Volatile
+    private var talking: Conversation? = null
 
     /** Loads the model if it is not loaded on [processor] already. Returns the milliseconds it took. */
     suspend fun load(model: File, processor: Processor): Long = withContext(Dispatchers.Default) {
@@ -94,7 +102,9 @@ class GemmaRouter(private val cacheDir: File) {
             val answers = mutableListOf<String>()
             val ready = warm ?: engine.createConversation(CONVERSATION)
             warm = null
-            val envelope = ready.use { conversation ->
+            talking = ready
+            val envelope = try {
+                ready.use { conversation ->
                 val first = conversation.ask(input).also { answers += it }
                 val parsed = Grounding.keep(EnvelopeParser.parse(first), input)
                 when {
@@ -103,9 +113,25 @@ class GemmaRouter(private val cacheDir: File) {
                     parsed is Envelope.Invalid && parsed.reason in FINAL -> parsed
                     else -> Grounding.keep(EnvelopeParser.parse(conversation.ask(RETRY).also { answers += it }), input)
                 }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Stopped by [cancel], most often: the words changed while they were being read.
+                Envelope.Invalid(STOPPED)
+            } finally {
+                talking = null
             }
             Routed(envelope, answers, SystemClock.elapsedRealtime() - started)
         }
+    }
+
+    /**
+     * Stops the reading under way, if any, so the next one need not wait for it. Safe from any
+     * thread and without the lock: that is the point of it.
+     */
+    fun cancel() {
+        runCatching { talking?.cancelProcess() }
     }
 
     suspend fun close() = lock.withLock {

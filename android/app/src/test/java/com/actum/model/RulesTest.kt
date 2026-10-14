@@ -112,6 +112,24 @@ class RulesTest {
         assertEquals("Dr Sen", field(read("add contact Dr Sen 98765 43210", ActumIntent.CONTACT), "name"))
     }
 
+    /** As Android's speech recognizer writes them: capitals, "a.m." with dots, fillers, a full stop. */
+    @Test
+    fun `spoken commands read like typed ones`() {
+        assertEquals("7:00 a.m", field(read("Set an alarm for 7:00 a.m.", ActumIntent.ALARM), "time_text"))
+        assertEquals("6:30 p.m", field(read("Um set an alarm for 6:30 p.m.", ActumIntent.ALARM), "time_text"))
+        val morning = read("Wake me up at 7 a.m. tomorrow morning", ActumIntent.ALARM)
+        assertEquals("7 a.m", field(morning, "time_text").orEmpty().removeSuffix("."))
+        assertEquals("tomorrow", field(morning, "date_text"))
+        assertEquals("tomorrow", field(read("Set an alarm for tomorrow morning at 6:45", ActumIntent.ALARM), "date_text"))
+        assertEquals("take the pizza out", field(read("Remind me in 10 minutes to take the pizza out.", ActumIntent.ALARM), "label"))
+        assertEquals(listOf("buy milk"), items(read("Okay buy milk.", ActumIntent.TODO)))
+        assertEquals("Rahul", field(read("So I paid Rahul 500.", ActumIntent.EXPENSE), "counterparty_or_merchant"))
+
+        val validator = Validator(LocalDate.of(2026, 10, 13), LocalTime.of(20, 43, 30))
+        val heard = "Set an alarm for 7:00 a.m."
+        assertEquals(LocalTime.of(7, 0), validator.check(Rules.route(heard)!!, heard).fields.single { it.name == "time_text" }.value)
+    }
+
     @Test
     fun `the diary keeps every word, at any length`() {
         val entry = read("diary: felt tired today, but the walk by the lake helped and I did not check my phone once", ActumIntent.DIARY)

@@ -72,6 +72,10 @@ Things that trip people up on a new machine or phone:
 
   Or disable those extensions for this workspace. Either way, check with Task Manager that
   no stray `java.exe` processes are left, or run `android/gradlew --stop`.
+- **Opening Actum starts Gemma.** It loads the model and reads its instructions in the
+  background as soon as the home screen opens, and reads requests ahead while you type.
+  Expect some CPU use and warmth while the app is open; nothing of this happens when
+  sharing into Actum.
 - **The first request after install is slow.** Actum hashes the 2.59 GB Gemma file once
   (tens of seconds) before trusting it, then remembers.
 - **The microphone prompt** appears the first time the mic is tapped.
@@ -125,13 +129,13 @@ One Gradle module, `android/app`. All code is under
 | Path | What it is |
 | --- | --- |
 | `model/GemmaModel` | Finds the sideloaded Gemma file and checks its SHA-256. The file name, size and hash are constants here; a different model means changing all three. |
-| `model/GemmaRouter` | The LiteRT-LM engine, the prompt, one retry. Keeps a conversation ready with the instructions already read in (`warmUp`). |
+| `model/GemmaRouter` | The LiteRT-LM engine, the prompt, one retry. Keeps a conversation ready with the instructions already read in (`warmUp`); `cancel` stops a reading part way. |
 | `model/Rules` | Direct commands read without the model. Whole-sentence patterns only. |
 | `model/Envelope` | The JSON envelope, the intent enum, and the repair of malformed replies. |
 | `model/Grounding` | Drops model actions that are not about what was said. |
 | `parse/` | `DateParser`, `TimeParser`, `AmountParser`, `PhoneParser`. Each returns `Sure`, `Unsure` (candidates and one question) or `None`. |
 | `validate/Validator` | Turns a proposal into checked fields (`VERIFIED / UNSURE / MISSING`) and a verdict (`PASS / UNCERTAIN / FAIL`). |
-| `act/Actor` | A request from words to cards to confirmation. Lives in the Application, so it survives rotation. |
+| `act/Actor` | A request from words to cards to confirmation. Lives in the Application, so it survives rotation. Loads Gemma when the app opens (`warmUp`) and reads typed or spoken words before the tap (`readAhead`), stopping that reading when the words change. |
 | `act/Executor` | What confirming does: intents and database writes, the log record, the calendar mark. |
 | `voice/Listener` | Android's on-device speech recognizer only. Picks an installed English pack, keeps one recognizer per sheet, ignores reports from one it has let go. |
 | `data/` | Room entities and `ListsDao` (to-dos, expenses, diary, log, calendar marks); `DiaryVault` (password lock) and `Diary` (keystore layer); the saved-item library (`Memory`, FTS). |

@@ -34,7 +34,7 @@ object Rules {
 
     // ── Tidying ────────────────────────────────────────────────────────────
 
-    private val OPENERS = Regex("^(?:(?:hey|hi|ok|okay|please|actum|kindly)[,\\s]+)+", RegexOption.IGNORE_CASE)
+    private val OPENERS = Regex("^(?:(?:hey|hi|ok|okay|please|actum|kindly|um+|uh+|so|alright|right|now|yeah)[,\\s]+)+", RegexOption.IGNORE_CASE)
     private val ASKING = Regex("^(?:can|could|will|would)\\s+you\\s+(?:please\\s+)?", RegexOption.IGNORE_CASE)
     private val CLOSERS = Regex("(?:[,\\s]+(?:please|thanks|thank you))+$", RegexOption.IGNORE_CASE)
 
@@ -50,7 +50,8 @@ object Rules {
     /** Any sign of a second thing being said: these go to the model. */
     private val CLAUSES = Regex(
         // A comma between digits is a number's own ("1,200"), not a break in the sentence.
-        "(?<!\\d),|,(?!\\d)|[;?]|\\.\\s|\\b(?:and|but|then|also|or|if|unless|because|not|never|no|don't|dont|didn't|didnt|won't|wont|can't|cant|isn't|wasn't|forgot|should|maybe)\\b",
+        // A full stop and a space is a new sentence, unless it is the end of "a.m." or "p.m.".
+        "(?<!\\d),|,(?!\\d)|[;?]|(?<![ap]\\.m)\\.\\s|\\b(?:and|but|then|also|or|if|unless|because|not|never|no|don't|dont|didn't|didnt|won't|wont|can't|cant|isn't|wasn't|forgot|should|maybe)\\b",
         RegexOption.IGNORE_CASE,
     )
 
@@ -73,12 +74,13 @@ object Rules {
     private const val STRETCH = "$COUNT\\s*(?:more\\s+)?(?:hours?|hrs?|minutes?|mins?)(?:\\s+and\\s+a\\s+half)?(?:\\s+\\d+\\s*(?:minutes?|mins?))?(?:\\s+from\\s+now)?"
 
     /** Only times that say enough to be read: "7:15", "7 pm", "7 o'clock". A bare "7" is left to the model. */
-    private const val CLOCK = "(?:\\d{1,2}[:.]\\d{2}(?:\\s*(?:am|pm|a\\.m\\.|p\\.m\\.))?|\\d{1,2}\\s*(?:am|pm|a\\.m\\.|p\\.m\\.)|\\d{1,2}\\s+o'?clock|noon|midnight)"
+    private const val CLOCK = "(?:\\d{1,2}[:.]\\d{2}(?:\\s*(?:a\\.?m\\.?|p\\.?m\\.?))?|\\d{1,2}\\s*(?:a\\.?m\\.?|p\\.?m\\.?)|\\d{1,2}\\s+o'?clock|noon|midnight)"
     private const val PART = "(?:\\s+(?:in\\s+the\\s+(?:morning|afternoon|evening)|at\\s+night|tonight))?"
-    private const val DAY = "(today|tomorrow|tonight)"
+    /** The day, and the part of it if said ("tomorrow morning"); only the day itself is captured. */
+    private const val DAY = "(today|tomorrow|tonight)(?:\\s+(?:morning|afternoon|evening|night))?"
 
     /** A clock time with a day before or after it, or a stretch from now. Groups: time, day | day, time | stretch | stretch. */
-    private const val WHEN = "(?:(?:at|for)\\s+)?($CLOCK$PART)(?:\\s+$DAY)?|$DAY\\s+(?:at|for)\\s+($CLOCK$PART)|in\\s+($STRETCH)|(?:for|after)\\s+($STRETCH)"
+    private const val WHEN = "(?:(?:at|for)\\s+)?($CLOCK$PART)(?:\\s+$DAY)?|(?:for\\s+)?$DAY\\s+(?:at|for)\\s+($CLOCK$PART)|in\\s+($STRETCH)|(?:for|after)\\s+($STRETCH)"
 
     private val alarms = listOf(
         rule("(?:set|put|create|add|make)\\s+(?:up\\s+)?(?:an?\\s+|the\\s+|my\\s+)?alarm\\s+(?:$WHEN)"),

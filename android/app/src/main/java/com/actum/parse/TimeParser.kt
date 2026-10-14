@@ -17,7 +17,8 @@ object TimeParser {
         Part.NIGHT to listOf("night", "tonight", "raat", "raate", "raat ko", "রাত", "রাতে", "रात"),
     ).mapValues { (_, words) -> Words.whole(words) }
 
-    private const val MERIDIEM = "(am|pm|a\\.m\\.|p\\.m\\.)"
+    /** "am", "a.m." and "a.m", the last as a speech recognizer's text arrives with its full stop trimmed. */
+    private const val MERIDIEM = "(am|pm|a\\.?m\\.?|p\\.?m\\.?)"
     private val half = Words.normalize("(?:(saade|sade|sare|সাড়ে|साढ़े)\\s+)?")
     private val oClock = listOf("baje", "bje", "bajey", "o'clock", "oclock", "ta", "tay", "te", "tar", "টা", "টায়", "টার", "বাজে", "बजे")
 

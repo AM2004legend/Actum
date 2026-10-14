@@ -80,9 +80,13 @@ through LiteRT-LM 0.18.0, 13 October 2026. Phone on charge, battery at 39â€“42 Â
 | 30-sentence English test set, per sentence | 6.0 s | 13.4 s | 29 of 30 |
 
 - Direct-command rules read 9 of those 30 sentences, all correctly, without the model.
-- Model load: about 2 s warm. Reading the instructions into the model takes about 4 s and
-  is done ahead of time, when you start typing or open the microphone, so it is not part
-  of the figures above.
+- Gemma is loaded, and its instructions read in (about 4 s), when Actum opens, so neither
+  is part of the figures above. Sharing into Actum does not load it.
+- **Requests are read ahead.** When typing pauses for about a second, or as soon as speech
+  has become words, Actum starts reading the request before **Do this** is tapped. Tapped
+  a few seconds later, the cards are already there: in two tries on the reference phone
+  the wait after the tap was under 0.1 s, against about 8 s of reading. Tapped at once,
+  the wait was 7 s. Direct commands and one- or two-word searches are not read ahead.
 - The one miss ("what is the capital of Australia") returns nothing, which Actum shows as
   a refusal.
 - The test set was used to find and fix faults and then run again, so 29 of 30 is not a

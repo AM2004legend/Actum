@@ -9,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.DisposableEffect
+import kotlinx.coroutines.delay
 import androidx.compose.ui.draw.clip
 import androidx.core.content.ContextCompat
 import com.actum.ui.act.MicGlyph
@@ -124,8 +125,19 @@ fun HomeScreen(
 
     var query by rememberSaveable { mutableStateOf("") }
     LaunchedEffect(query) { viewModel.setQuery(query) }
-    // The first letter typed is the cue to get Gemma ready, so it is not loading while the person waits.
-    LaunchedEffect(query.isNotBlank()) { if (query.isNotBlank()) viewModel.actor.warmUp() }
+    // Opening the app is the cue to get Gemma ready: loaded, with its instructions read in, before
+    // anything is asked. (Sharing into Actum does not open this screen, so a save does not load it.)
+    LaunchedEffect(Unit) { viewModel.actor.warmUp() }
+    // A pause in typing starts reading what is typed, so the wait after "Do this" is shorter. A
+    // direct command or a word or two is not read ahead; a change stops the reading under way.
+    LaunchedEffect(query) {
+        if (query.isBlank()) {
+            viewModel.actor.dropEarly()
+        } else {
+            delay(TYPING_PAUSE_MILLIS)
+            viewModel.actor.readAhead(query)
+        }
+    }
     // Back clears a search before it leaves the app.
     BackHandler(enabled = query.isNotEmpty()) { query = "" }
 
@@ -327,8 +339,16 @@ fun HomeScreen(
                         listener.reset()
                         viewModel.actor.ask(words)
                     },
-                    onDiary = { words, done -> viewModel.actor.writeDiary(words, context, done) },
-                    onClose = { listener.reset() },
+                    onDiary = { words, done ->
+                        viewModel.actor.dropEarly()
+                        viewModel.actor.writeDiary(words, context, done)
+                    },
+                    // Read as soon as the speech is words, and again whenever they are corrected.
+                    onWords = viewModel.actor::readAhead,
+                    onClose = {
+                        viewModel.actor.dropEarly()
+                        listener.reset()
+                    },
                 )
             }
 
@@ -403,3 +423,6 @@ private class HideKeyboardOnDrag(
         return Offset.Zero
     }
 }
+
+/** How long typing must pause before what is typed is read ahead. */
+private const val TYPING_PAUSE_MILLIS = 900L
